@@ -1,0 +1,113 @@
+[workspace]
+resolver = "3"
+members = [
+    "crates/zuit-core",
+    "crates/zuit-lang-rust",
+    "crates/zuit-lang-python",
+    "crates/zuit-lang-js",
+    "crates/zuit-analyzers",
+    "crates/zuit-plugins",
+    "crates/zuit-report",
+    "crates/zuit-registry",
+    "crates/zuit-lsp",
+    "crates/zuit-cli",
+    "crates/zuit-show",
+    "crates/xtask",
+    "tests/integration",
+]
+exclude = ["bindings/python", "bindings/node"]
+
+[workspace.package]
+edition = "2024"
+rust-version = "1.93"
+# >>> zuit-sync: managed (do not edit) >>>
+version = "0.1.0"
+description = "Multi-language static analysis CLI emitting structured findings on multiple quality dimensions."
+license = "MIT"
+repository = "https://github.com/shubhamkaushal765/zuit"
+authors = ["Shubham Kaushal"]
+# <<< zuit-sync: end <<<
+
+[workspace.dependencies]
+# Parsing
+syn = { version = "2.0.117", features = ["full", "extra-traits", "visit", "parsing", "printing", "clone-impls"], default-features = false }
+proc-macro2 = { version = "1", features = ["span-locations"], default-features = false }
+rustpython-parser = "0.4.0"
+oxc_parser = "0.128.0"
+
+# Serialization
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = { version = "1.0.149", features = ["preserve_order"] }
+toml = "1.1.2"
+toml_edit = "0.22"
+
+# Error handling
+thiserror = "2.0.18"
+anyhow = "1.0.102"
+
+# CLI
+clap = { version = "4.6.1", features = ["derive"] }
+clap_complete = "4.6.1"
+
+# Concurrency
+rayon = "1.12.0"
+
+# File traversal
+ignore = "0.4.25"
+walkdir = "2.5.0"
+globset = "0.4.16"
+
+# Data structures
+smallvec = "1.15.1"
+
+# Pattern matching
+regex = "1.11.1"
+
+# XML
+quick-xml = "0.36.2"
+
+# Tracing / logging
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
+
+# Terminal output
+colored = "3.1.1"
+
+# Testing
+insta = "1.47.2"
+proptest = "1.11.0"
+criterion = { version = "0.8.2", features = ["html_reports"] }
+assert_cmd = "2.2.1"
+assert_fs = "1.1.3"
+tempfile = "3.27.0"
+
+# History store
+blake3 = "1.5"
+fs2 = "0.4"
+time = { version = "0.3", features = ["formatting", "parsing", "macros"] }
+rand = "0.9"
+
+# HTTP server (sync, single-threaded)
+tiny_http = "0.12"
+
+# Daemon
+nix = { version = "0.30", features = ["process", "signal", "fs"] }
+webbrowser = "1.0"
+
+# Executable discovery
+which = "4.4.2"
+
+# Test client
+ureq = { version = "2", default-features = false }
+
+# File-change watching
+notify = "8"
+
+[workspace.lints.rust]
+# `deny` (not `forbid`) so `zuit-show::daemon` can `#[allow]` for the two
+# `unsafe { fork() }` calls required by the POSIX double-fork. Every other
+# crate inherits the `deny`, which still rejects unsafe by default.
+unsafe_code = "deny"
+
+[workspace.lints.clippy]
+pedantic = { level = "warn", priority = -1 }
