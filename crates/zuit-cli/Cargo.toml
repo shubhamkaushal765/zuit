@@ -1,0 +1,48 @@
+[package]
+name = "zuit"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Command-line interface for zuit static analysis."
+
+[[bin]]
+name = "zuit"
+path = "src/main.rs"
+
+[features]
+default = ["all-langs", "rules-v1", "plugins"]
+all-langs = ["lang-rust", "lang-python", "lang-js"]
+lang-rust = ["zuit-registry/lang-rust"]
+lang-python = ["zuit-registry/lang-python"]
+lang-js = ["zuit-registry/lang-js"]
+rules-v1 = ["zuit-registry/rules-v1"]
+plugins = ["zuit-registry/plugins"]
+
+[dependencies]
+zuit-core = { path = "../zuit-core" }
+zuit-plugins = { path = "../zuit-plugins" }
+zuit-registry = { path = "../zuit-registry", default-features = false }
+zuit-report = { path = "../zuit-report" }
+zuit-show = { path = "../zuit-show" }
+zuit-lsp = { path = "../zuit-lsp" }
+clap = { workspace = true }
+clap_complete = { workspace = true }
+anyhow = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+webbrowser = { workspace = true }
+notify = { workspace = true }
+tempfile = { workspace = true }
+
+[dev-dependencies]
+assert_cmd = { workspace = true }
+assert_fs = { workspace = true }
+serde_json = { workspace = true }
+tempfile = { workspace = true }
+predicates = "3"
+
+[lints]
+workspace = true

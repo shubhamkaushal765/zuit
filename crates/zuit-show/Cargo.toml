@@ -1,0 +1,33 @@
+[package]
+name = "zuit-show"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "History store, HTTP server, and daemon for `zuit show`."
+
+[dependencies]
+zuit-core = { path = "../zuit-core" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+toml = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+blake3 = { workspace = true }
+fs2 = { workspace = true }
+time = { workspace = true }
+rand = { workspace = true }
+tiny_http = { workspace = true }
+webbrowser = { workspace = true }
+ureq = { workspace = true }                          # used by daemon::probe_healthz at runtime
+
+[target.'cfg(unix)'.dependencies]
+nix = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+insta = { workspace = true }
+
+[lints]
+workspace = true

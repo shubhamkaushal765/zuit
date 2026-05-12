@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>zuit — scan history</title>
+    <link rel="stylesheet" href="/assets/fonts.css" />
+    <link rel="stylesheet" href="/assets/uplot.min.css" />
+    <link rel="stylesheet" href="/assets/styles.css" />
+    <script src="/assets/uplot.js" defer></script>
+    <script src="/assets/app.js" defer></script>
+  </head>
+  <body>
+    <header>
+      <button id="sidebar-toggle" aria-label="Toggle sidebar" aria-expanded="true" aria-controls="projects">☰</button>
+      <h1>zuit</h1>
+      <span id="version"></span>
+      <span id="header-divider" aria-hidden="true"></span>
+      <span id="breadcrumb" aria-live="polite"></span>
+      <span id="header-spacer"></span>
+      <div id="theme-toggle" role="radiogroup" aria-label="Color theme">
+        <button data-theme-mode="auto" aria-label="System theme" aria-checked="true">Auto</button>
+        <button data-theme-mode="light" aria-label="Light theme" aria-checked="false">Light</button>
+        <button data-theme-mode="dark" aria-label="Dark theme" aria-checked="false">Dark</button>
+      </div>
+    </header>
+    <aside id="projects" aria-label="Projects"></aside>
+    <main id="main">
+      <nav id="tabs" role="tablist">
+        <button data-tab="overview" role="tab">Overview</button>
+        <button data-tab="scans" role="tab">Scans</button>
+        <button data-tab="findings" role="tab">Findings</button>
+        <button data-tab="trends" role="tab">Trends</button>
+        <button data-tab="heatmap" role="tab">Heatmap</button>
+        <button data-tab="diff" role="tab">Diff</button>
+        <button data-tab="config" role="tab">Config</button>
+      </nav>
+      <section id="tab-overview" class="tab" role="tabpanel" hidden></section>
+      <section id="tab-scans" class="tab" role="tabpanel" hidden></section>
+      <section id="tab-findings" class="tab" role="tabpanel" hidden></section>
+      <section id="tab-trends" class="tab" role="tabpanel" hidden></section>
+      <section id="tab-heatmap" class="tab" role="tabpanel" hidden></section>
+      <section id="tab-diff" class="tab" role="tabpanel" hidden></section>
+      <section id="tab-config" class="tab" role="tabpanel" hidden></section>
+    </main>
+  </body>
+</html>

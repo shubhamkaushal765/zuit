@@ -1,0 +1,29 @@
+[package]
+name = "zuit-lsp"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Minimum-viable LSP server that surfaces zuit findings as diagnostics."
+
+[features]
+default = ["all-langs", "rules-v1"]
+all-langs = ["lang-rust", "lang-python", "lang-js"]
+lang-rust = ["zuit-registry/lang-rust"]
+lang-python = ["zuit-registry/lang-python"]
+lang-js = ["zuit-registry/lang-js"]
+rules-v1 = ["zuit-registry/rules-v1"]
+
+[dependencies]
+zuit-core = { path = "../zuit-core" }
+zuit-registry = { path = "../zuit-registry", default-features = false }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+
+[lints]
+workspace = true
