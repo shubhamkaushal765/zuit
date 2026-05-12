@@ -1,0 +1,33 @@
+[package]
+name = "zuit-py"
+version = "0.1.0"
+edition = "2021"
+description = "Python bindings for the zuit static analysis engine."
+license = "MIT"
+
+# This crate is intentionally excluded from the workspace to avoid the
+# workspace-level `unsafe_code = "forbid"` lint conflicting with PyO3.
+# It pulls zuit-core via a path dependency.
+[workspace]
+members = []
+
+[lib]
+name = "zuit"
+crate-type = ["cdylib"]
+
+[dependencies]
+zuit-core = { path = "../../crates/zuit-core" }
+pyo3 = { version = "0.22", features = ["extension-module"] }
+serde_json = "1"
+
+# Required by zuit-core's transitive deps
+rayon = "1"
+serde = { version = "1", features = ["derive"] }
+thiserror = "2"
+smallvec = { version = "1", features = ["serde"] }
+ignore = "0.4"
+toml = "1"
+
+[lints.rust]
+# Allow unsafe_code here because PyO3 requires it internally.
+# The binding itself contains no unsafe Rust; PyO3 macros generate it.
