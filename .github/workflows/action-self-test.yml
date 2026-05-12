@@ -1,0 +1,27 @@
+name: Action self-test
+
+on:
+  push:
+    branches: ["main", "claude/**"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  self-test:
+    name: Zuit action self-test
+    runs-on: ubuntu-latest
+    permissions:
+      # Required to upload SARIF results to the Security tab.
+      security-events: write
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run zuit action against this repository
+        uses: ./
+        with:
+          path: "."
+          format: "sarif"
+          fail-on: "high"
+          version: "latest"

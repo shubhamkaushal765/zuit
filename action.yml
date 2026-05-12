@@ -1,0 +1,52 @@
+name: zuit
+description: "Run zuit static analysis and optionally upload SARIF results to GitHub."
+
+inputs:
+  path:
+    description: "Root path to analyse (relative to the repository root)."
+    required: false
+    default: "."
+  format:
+    description: "Output format passed to zuit analyze --format."
+    required: false
+    default: "sarif"
+  fail-on:
+    description: "Exit non-zero when findings of this severity or higher are found."
+    required: false
+    default: "medium"
+  version:
+    description: >
+      Version of zuit to install. Pass 'latest' to install the newest
+      published crate, or a specific semver string (e.g. '0.1.0').
+    required: false
+    default: "latest"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Install Rust toolchain
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Install zuit
+      shell: bash
+      run: |
+        if [ "${{ inputs.version }}" = "latest" ]; then
+          cargo install --locked zuit
+        else
+          cargo install --locked zuit --version "${{ inputs.version }}"
+        fi
+
+    - name: Run zuit analysis
+      shell: bash
+      run: |
+        zuit analyze "${{ inputs.path }}" \
+          --format "${{ inputs.format }}" \
+          --fail-on "${{ inputs.fail-on }}" \
+          --output zuit-results.sarif
+      continue-on-error: true
+
+    - name: Upload SARIF to GitHub
+      if: inputs.format == 'sarif'
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: zuit-results.sarif
