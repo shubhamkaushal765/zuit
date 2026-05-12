@@ -1,0 +1,39 @@
+---
+source: crates/zuit-report/tests/snapshots_terminal.rs
+expression: output
+---
+
+=== Security ===
+  [CRITICAL]
+    src/auth.rs:3:15 SEC001-hardcoded-secret [CWE-798, A07:2021]
+      High-entropy string resembles a secret: 'AKIAIOSFODNN7EXAMPLE...'
+      Suggestion: Move credentials to environment variables or a secrets manager.
+  [HIGH]
+    src/auth.rs:7:20 SEC001-hardcoded-secret [CWE-798, A07:2021]
+      JWT-like token found in source: 'eyJhbGciOiJIUzI1NiJ9...'
+
+=== Maintainability ===
+  [MEDIUM]
+    src/lib.rs:12:1 MAINT001-cyclomatic [CWE-1121]
+      Function 'parse_request' has cyclomatic complexity 14 (threshold: 10).
+      Suggestion: Extract sub-routines to reduce branching.
+  [LOW]
+    src/lib.rs:48:1 MAINT001-cyclomatic [CWE-1121]
+      Function 'build_response' has cyclomatic complexity 11 (threshold: 10).
+
+=== Documentation ===
+  [MEDIUM]
+    src/auth.rs:20:1 DOC001-public-api-undoc [CWE-1059]
+      Public function 'verify_token' lacks a documentation comment.
+      Suggestion: Add a `///` doc comment explaining purpose, parameters, and return value.
+
+──────────────────────────────────────────────────────
+SCORES
+──────────────────────────────────────────────────────
+  Security              62.0  ############........  D
+  Maintainability       84.5  #################...  B
+  Complexity           100.0  ####################  A
+  Documentation         78.0  ################....  C
+  TestSmell             95.0  ###################.  A
+──────────────────────────────────────────────────────
+  12 files scanned, 1 parse failures, 237ms

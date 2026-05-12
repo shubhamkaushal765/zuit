@@ -1,0 +1,33 @@
+[
+  {
+    "filePath": "/project/src/index.js",
+    "messages": [
+      {
+        "ruleId": "no-eval",
+        "severity": 2,
+        "message": "eval can be harmful.",
+        "line": 5,
+        "column": 3
+      },
+      {
+        "ruleId": "complexity",
+        "severity": 1,
+        "message": "Function 'processData' has a complexity of 15.",
+        "line": 12,
+        "column": 1
+      }
+    ]
+  },
+  {
+    "filePath": "/project/src/utils.js",
+    "messages": [
+      {
+        "ruleId": "no-unused-vars",
+        "severity": 1,
+        "message": "'unusedVar' is defined but never used.",
+        "line": 3,
+        "column": 7
+      }
+    ]
+  }
+]

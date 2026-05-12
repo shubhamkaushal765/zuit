@@ -1,0 +1,236 @@
+---
+source: crates/zuit-report/tests/snapshots_sarif.rs
+expression: output
+---
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "zuit",
+          "version": "0.1.0",
+          "informationUri": "https://github.com/shubhamkaushal/zuit",
+          "rules": [
+            {
+              "id": "DOC001-public-api-undoc",
+              "name": "DOC001-public-api-undoc",
+              "shortDescription": {
+                "text": "DOC001-public-api-undoc"
+              },
+              "defaultConfiguration": {
+                "level": "warning"
+              }
+            },
+            {
+              "id": "MAINT001-cyclomatic",
+              "name": "MAINT001-cyclomatic",
+              "shortDescription": {
+                "text": "MAINT001-cyclomatic"
+              },
+              "defaultConfiguration": {
+                "level": "warning"
+              }
+            },
+            {
+              "id": "SEC001-hardcoded-secret",
+              "name": "SEC001-hardcoded-secret",
+              "shortDescription": {
+                "text": "SEC001-hardcoded-secret"
+              },
+              "defaultConfiguration": {
+                "level": "error"
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "SEC001-hardcoded-secret",
+          "level": "error",
+          "message": {
+            "text": "High-entropy string resembles a secret: 'AKIAIOSFODNN7EXAMPLE...'"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/auth.rs"
+                },
+                "region": {
+                  "startLine": 3,
+                  "startColumn": 15,
+                  "endLine": 3,
+                  "endColumn": 53
+                }
+              }
+            }
+          ],
+          "fixes": [
+            {
+              "description": {
+                "text": "Move credentials to environment variables or a secrets manager."
+              }
+            }
+          ],
+          "taxa": [
+            {
+              "toolComponent": {
+                "name": "CWE"
+              },
+              "id": "CWE-798"
+            },
+            {
+              "toolComponent": {
+                "name": "OWASP"
+              },
+              "id": "A07:2021"
+            }
+          ]
+        },
+        {
+          "ruleId": "SEC001-hardcoded-secret",
+          "level": "error",
+          "message": {
+            "text": "JWT-like token found in source: 'eyJhbGciOiJIUzI1NiJ9...'"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/auth.rs"
+                },
+                "region": {
+                  "startLine": 7,
+                  "startColumn": 20,
+                  "endLine": 7,
+                  "endColumn": 85
+                }
+              }
+            }
+          ],
+          "taxa": [
+            {
+              "toolComponent": {
+                "name": "CWE"
+              },
+              "id": "CWE-798"
+            },
+            {
+              "toolComponent": {
+                "name": "OWASP"
+              },
+              "id": "A07:2021"
+            }
+          ]
+        },
+        {
+          "ruleId": "DOC001-public-api-undoc",
+          "level": "warning",
+          "message": {
+            "text": "Public function 'verify_token' lacks a documentation comment."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/auth.rs"
+                },
+                "region": {
+                  "startLine": 20,
+                  "startColumn": 1,
+                  "endLine": 20,
+                  "endColumn": 21
+                }
+              }
+            }
+          ],
+          "fixes": [
+            {
+              "description": {
+                "text": "Add a `///` doc comment explaining purpose, parameters, and return value."
+              }
+            }
+          ],
+          "taxa": [
+            {
+              "toolComponent": {
+                "name": "CWE"
+              },
+              "id": "CWE-1059"
+            }
+          ]
+        },
+        {
+          "ruleId": "MAINT001-cyclomatic",
+          "level": "warning",
+          "message": {
+            "text": "Function 'parse_request' has cyclomatic complexity 14 (threshold: 10)."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/lib.rs"
+                },
+                "region": {
+                  "startLine": 12,
+                  "startColumn": 1,
+                  "endLine": 45,
+                  "endColumn": 2
+                }
+              }
+            }
+          ],
+          "fixes": [
+            {
+              "description": {
+                "text": "Extract sub-routines to reduce branching."
+              }
+            }
+          ],
+          "taxa": [
+            {
+              "toolComponent": {
+                "name": "CWE"
+              },
+              "id": "CWE-1121"
+            }
+          ]
+        },
+        {
+          "ruleId": "MAINT001-cyclomatic",
+          "level": "note",
+          "message": {
+            "text": "Function 'build_response' has cyclomatic complexity 11 (threshold: 10)."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/lib.rs"
+                },
+                "region": {
+                  "startLine": 48,
+                  "startColumn": 1,
+                  "endLine": 72,
+                  "endColumn": 2
+                }
+              }
+            }
+          ],
+          "taxa": [
+            {
+              "toolComponent": {
+                "name": "CWE"
+              },
+              "id": "CWE-1121"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

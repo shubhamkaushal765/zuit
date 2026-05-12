@@ -1,0 +1,89 @@
+{
+  "auditReportVersion": 2,
+  "vulnerabilities": {
+    "lodash": {
+      "name": "lodash",
+      "severity": "high",
+      "isDirect": true,
+      "via": [
+        {
+          "source": 1067376,
+          "name": "lodash",
+          "dependency": "lodash",
+          "title": "Prototype Pollution in lodash",
+          "url": "https://npmjs.com/advisories/1067376",
+          "severity": "high",
+          "cwe": ["CWE-1321"],
+          "cvss": { "score": 7.4, "vectorString": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:H/I:H/A:N" },
+          "range": "<4.17.21"
+        }
+      ],
+      "effects": [],
+      "range": "<4.17.21",
+      "nodes": ["node_modules/lodash"],
+      "fixAvailable": true
+    },
+    "minimist": {
+      "name": "minimist",
+      "severity": "critical",
+      "isDirect": false,
+      "via": [
+        {
+          "source": 1080685,
+          "name": "minimist",
+          "dependency": "minimist",
+          "title": "Prototype Pollution in minimist",
+          "url": "https://npmjs.com/advisories/1080685",
+          "severity": "critical",
+          "cwe": ["CWE-1321"],
+          "cvss": { "score": 9.8, "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H" },
+          "range": "<0.2.4"
+        }
+      ],
+      "effects": [],
+      "range": "<0.2.4",
+      "nodes": ["node_modules/minimist"],
+      "fixAvailable": true
+    },
+    "semver-low": {
+      "name": "semver-low",
+      "severity": "low",
+      "isDirect": false,
+      "via": [
+        {
+          "source": 1234567,
+          "name": "semver-low",
+          "dependency": "semver-low",
+          "title": "Low severity issue",
+          "url": "https://npmjs.com/advisories/1234567",
+          "severity": "low",
+          "cwe": [],
+          "cvss": { "score": 2.5 },
+          "range": "<1.0.1"
+        }
+      ],
+      "effects": [],
+      "range": "<1.0.1",
+      "nodes": ["node_modules/semver-low"],
+      "fixAvailable": false
+    }
+  },
+  "metadata": {
+    "vulnerabilities": {
+      "info": 0,
+      "low": 1,
+      "moderate": 0,
+      "high": 1,
+      "critical": 1,
+      "total": 3
+    },
+    "dependencies": {
+      "prod": 10,
+      "dev": 5,
+      "optional": 0,
+      "peer": 0,
+      "peerOptional": 0,
+      "total": 15
+    }
+  }
+}

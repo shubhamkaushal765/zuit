@@ -1,0 +1,32 @@
+{
+  "results": [
+    {
+      "test_id": "B102",
+      "test_name": "exec_used",
+      "issue_severity": "HIGH",
+      "issue_confidence": "HIGH",
+      "issue_text": "Use of exec detected.",
+      "filename": "/project/main.py",
+      "line_number": 5,
+      "col_offset": 0
+    },
+    {
+      "test_id": "B608",
+      "test_name": "hardcoded_sql_expressions",
+      "issue_severity": "MEDIUM",
+      "issue_confidence": "MEDIUM",
+      "issue_text": "Possible SQL injection via string-based query construction.",
+      "filename": "/project/db.py",
+      "line_number": 42,
+      "col_offset": 4
+    }
+  ],
+  "metrics": {
+    "_totals": {
+      "CONFIDENCE.HIGH": 1,
+      "CONFIDENCE.MEDIUM": 1,
+      "SEVERITY.HIGH": 1,
+      "SEVERITY.MEDIUM": 1
+    }
+  }
+}

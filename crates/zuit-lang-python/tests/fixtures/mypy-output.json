@@ -1,0 +1,2 @@
+{"file":"foo.py","line":10,"column":4,"message":"Argument 1 to \"process\" has incompatible type \"str\"; expected \"int\"","hint":null,"code":"arg-type","severity":"error"}
+{"file":"bar.py","line":25,"column":11,"message":"Return type \"None\" is incompatible with expected type \"str\"","hint":null,"code":"return-value","severity":"warning"}

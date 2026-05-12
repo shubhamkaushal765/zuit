@@ -1,0 +1,30 @@
+[package]
+name = "zuit-registry"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Built-in registry constructor for zuit — shared between CLI and LSP."
+
+[features]
+default = ["lang-rust", "lang-python", "lang-js", "rules-v1", "plugins"]
+lang-rust = ["dep:zuit-lang-rust"]
+lang-python = ["dep:zuit-lang-python"]
+lang-js = ["dep:zuit-lang-js"]
+rules-v1 = ["dep:zuit-analyzers"]
+plugins = ["dep:zuit-plugins"]
+
+[dependencies]
+zuit-core = { path = "../zuit-core" }
+zuit-analyzers = { path = "../zuit-analyzers", optional = true }
+zuit-lang-rust = { path = "../zuit-lang-rust", optional = true }
+zuit-lang-python = { path = "../zuit-lang-python", optional = true }
+zuit-lang-js = { path = "../zuit-lang-js", optional = true }
+zuit-plugins = { path = "../zuit-plugins", optional = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+
+[lints]
+workspace = true

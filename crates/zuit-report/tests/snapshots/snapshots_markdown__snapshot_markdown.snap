@@ -1,0 +1,43 @@
+---
+source: crates/zuit-report/tests/snapshots_markdown.rs
+expression: output
+---
+## zuit report
+
+| Dimension | Score | Rating |
+|-----------|------:|--------|
+| Security | 62.0 | Fair |
+| Maintainability | 84.5 | Good |
+| Complexity | 100.0 | Excellent |
+| Documentation | 78.0 | Good |
+| TestSmell | 95.0 | Excellent |
+
+_Scanned 12 file(s) &mdash; 1 parse failure(s) &mdash; 237ms_
+
+---
+
+<details><summary><strong>Security</strong> &mdash; score: 62.0 (2 findings)</summary>
+
+| File | Line | Rule | Severity | Taxonomy | Message |
+|------|------|------|----------|----------|---------|
+| `src/auth.rs` | 3 | `SEC001-hardcoded-secret` | Critical | `CWE-798`, `A07:2021` | High-entropy string resembles a secret: 'AKIAIOSFODNN7EXAMPLE...' |
+| `src/auth.rs` | 7 | `SEC001-hardcoded-secret` | High | `CWE-798`, `A07:2021` | JWT-like token found in source: 'eyJhbGciOiJIUzI1NiJ9...' |
+
+</details>
+
+<details><summary><strong>Maintainability</strong> &mdash; score: 84.5 (2 findings)</summary>
+
+| File | Line | Rule | Severity | Taxonomy | Message |
+|------|------|------|----------|----------|---------|
+| `src/lib.rs` | 12 | `MAINT001-cyclomatic` | Medium | `CWE-1121` | Function 'parse_request' has cyclomatic complexity 14 (threshold: 10). |
+| `src/lib.rs` | 48 | `MAINT001-cyclomatic` | Low | `CWE-1121` | Function 'build_response' has cyclomatic complexity 11 (threshold: 10). |
+
+</details>
+
+<details><summary><strong>Documentation</strong> &mdash; score: 78.0 (1 finding)</summary>
+
+| File | Line | Rule | Severity | Taxonomy | Message |
+|------|------|------|----------|----------|---------|
+| `src/auth.rs` | 20 | `DOC001-public-api-undoc` | Medium | `CWE-1059` | Public function 'verify_token' lacks a documentation comment. |
+
+</details>

@@ -1,0 +1,33 @@
+{
+  "mylib/utils.py": [
+    {
+      "name": "simple_func",
+      "lineno": 5,
+      "col_offset": 0,
+      "endline": 15,
+      "complexity": 3,
+      "rank": "A",
+      "type": "function"
+    },
+    {
+      "name": "complex_monster",
+      "lineno": 20,
+      "col_offset": 0,
+      "endline": 120,
+      "complexity": 42,
+      "rank": "F",
+      "type": "function"
+    }
+  ],
+  "mylib/core.py": [
+    {
+      "name": "moderate_func",
+      "lineno": 10,
+      "col_offset": 0,
+      "endline": 30,
+      "complexity": 8,
+      "rank": "B",
+      "type": "function"
+    }
+  ]
+}

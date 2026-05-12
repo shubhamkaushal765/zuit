@@ -1,0 +1,179 @@
+---
+source: crates/zuit-report/tests/snapshots_json.rs
+expression: output
+---
+{
+  "schema_version": 1,
+  "tool": {
+    "name": "zuit",
+    "version": "0.1.0"
+  },
+  "scores": {
+    "maintainability": 84.5,
+    "security": 62.0,
+    "complexity": 100.0,
+    "documentation": 78.0,
+    "test_smell": 95.0
+  },
+  "grades": {
+    "maintainability": "B",
+    "security": "D",
+    "complexity": "A",
+    "documentation": "C",
+    "test_smell": "A"
+  },
+  "findings": [
+    {
+      "analyzer": "SEC001-hardcoded-secret",
+      "dimension": "security",
+      "rule_id": "SEC001-hardcoded-secret",
+      "severity": "critical",
+      "message": "High-entropy string resembles a secret: 'AKIAIOSFODNN7EXAMPLE...'",
+      "location": {
+        "file": "src/auth.rs",
+        "span": {
+          "start": 42,
+          "end": 80
+        },
+        "start": {
+          "line": 3,
+          "column": 15
+        },
+        "end": {
+          "line": 3,
+          "column": 53
+        }
+      },
+      "suggestion": "Move credentials to environment variables or a secrets manager.",
+      "references": [
+        "https://docs.zuit.dev/rules/SEC001-hardcoded-secret"
+      ],
+      "cwe": [
+        "CWE-798"
+      ],
+      "owasp": [
+        "A07:2021"
+      ]
+    },
+    {
+      "analyzer": "SEC001-hardcoded-secret",
+      "dimension": "security",
+      "rule_id": "SEC001-hardcoded-secret",
+      "severity": "high",
+      "message": "JWT-like token found in source: 'eyJhbGciOiJIUzI1NiJ9...'",
+      "location": {
+        "file": "src/auth.rs",
+        "span": {
+          "start": 120,
+          "end": 185
+        },
+        "start": {
+          "line": 7,
+          "column": 20
+        },
+        "end": {
+          "line": 7,
+          "column": 85
+        }
+      },
+      "suggestion": null,
+      "references": [],
+      "cwe": [
+        "CWE-798"
+      ],
+      "owasp": [
+        "A07:2021"
+      ]
+    },
+    {
+      "analyzer": "MAINT001-cyclomatic",
+      "dimension": "maintainability",
+      "rule_id": "MAINT001-cyclomatic",
+      "severity": "medium",
+      "message": "Function 'parse_request' has cyclomatic complexity 14 (threshold: 10).",
+      "location": {
+        "file": "src/lib.rs",
+        "span": {
+          "start": 200,
+          "end": 900
+        },
+        "start": {
+          "line": 12,
+          "column": 1
+        },
+        "end": {
+          "line": 45,
+          "column": 2
+        }
+      },
+      "suggestion": "Extract sub-routines to reduce branching.",
+      "references": [
+        "https://docs.zuit.dev/rules/MAINT001-cyclomatic"
+      ],
+      "cwe": [
+        "CWE-1121"
+      ]
+    },
+    {
+      "analyzer": "MAINT001-cyclomatic",
+      "dimension": "maintainability",
+      "rule_id": "MAINT001-cyclomatic",
+      "severity": "low",
+      "message": "Function 'build_response' has cyclomatic complexity 11 (threshold: 10).",
+      "location": {
+        "file": "src/lib.rs",
+        "span": {
+          "start": 950,
+          "end": 1300
+        },
+        "start": {
+          "line": 48,
+          "column": 1
+        },
+        "end": {
+          "line": 72,
+          "column": 2
+        }
+      },
+      "suggestion": null,
+      "references": [],
+      "cwe": [
+        "CWE-1121"
+      ]
+    },
+    {
+      "analyzer": "DOC001-public-api-undoc",
+      "dimension": "documentation",
+      "rule_id": "DOC001-public-api-undoc",
+      "severity": "medium",
+      "message": "Public function 'verify_token' lacks a documentation comment.",
+      "location": {
+        "file": "src/auth.rs",
+        "span": {
+          "start": 300,
+          "end": 320
+        },
+        "start": {
+          "line": 20,
+          "column": 1
+        },
+        "end": {
+          "line": 20,
+          "column": 21
+        }
+      },
+      "suggestion": "Add a `///` doc comment explaining purpose, parameters, and return value.",
+      "references": [],
+      "cwe": [
+        "CWE-1059"
+      ]
+    }
+  ],
+  "stats": {
+    "files_scanned": 12,
+    "parse_failures": 1,
+    "elapsed_ms": 237,
+    "suppressed": 0,
+    "cache_hits": 0
+  }
+}

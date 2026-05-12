@@ -1,0 +1,44 @@
+{
+  "modules": [],
+  "summary": {
+    "violations": [
+      {
+        "type": "dependency",
+        "from": "src/a.js",
+        "to": "src/b.js",
+        "rule": {
+          "severity": "error",
+          "name": "no-circular"
+        },
+        "comment": "Circular dependency detected"
+      },
+      {
+        "type": "dependency",
+        "from": "src/c.js",
+        "to": "node_modules/lodash/index.js",
+        "rule": {
+          "severity": "warn",
+          "name": "no-deprecated"
+        },
+        "comment": "Importing deprecated module"
+      },
+      {
+        "type": "dependency",
+        "from": "src/utils.js",
+        "to": "src/internal/private.js",
+        "rule": {
+          "severity": "info",
+          "name": "not-to-core"
+        },
+        "comment": "Do not import from internal paths"
+      }
+    ],
+    "error": 1,
+    "warn": 1,
+    "info": 1,
+    "optionsUsed": {
+      "args": ".",
+      "outputType": "json"
+    }
+  }
+}

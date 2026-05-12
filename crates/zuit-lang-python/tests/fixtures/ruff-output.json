@@ -1,0 +1,23 @@
+[
+  {
+    "code": "F401",
+    "message": "'os' imported but unused",
+    "filename": "/project/main.py",
+    "location": {"row": 1, "column": 1},
+    "end_location": {"row": 1, "column": 9}
+  },
+  {
+    "code": "E501",
+    "message": "line too long (120 > 88 characters)",
+    "filename": "/project/main.py",
+    "location": {"row": 10, "column": 89},
+    "end_location": {"row": 10, "column": 120}
+  },
+  {
+    "code": "C901",
+    "message": "'complex_function' is too complex (11 > 10)",
+    "filename": "/project/utils.py",
+    "location": {"row": 5, "column": 1},
+    "end_location": {"row": 5, "column": 4}
+  }
+]
