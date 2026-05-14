@@ -1,6 +1,6 @@
 [project]
 name = "zuit"
-version = "0.1.0"
+version = "0.1.1"
 description = "Multi-language static analysis CLI emitting structured findings on multiple quality dimensions."
 license = "MIT"
 repository = "https://github.com/shubhamkaushal765/zuit"

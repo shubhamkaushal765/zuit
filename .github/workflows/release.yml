@@ -58,6 +58,13 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
+      # Pin the build-host Python: GitHub runners track the latest CPython
+      # release (currently 3.14 on macos-latest), but pyo3 0.22 supports up
+      # to Python 3.13 only. Without this pin the macOS wheel build aborts
+      # in pyo3-ffi's build script. 3.12 is widely available across runners.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
       - uses: PyO3/maturin-action@v1
         with:
           working-directory: bindings/python

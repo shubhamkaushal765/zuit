@@ -150,6 +150,52 @@ class TestBuildWheelsJob(unittest.TestCase):
         cls.jobs = cls.data.get("jobs", {})
         cls.job = cls.jobs.get("build-wheels", {})
 
+    def test_build_wheels_pins_python_via_setup_python(self):
+        """build-wheels uses actions/setup-python@v5 with a pinned python-version.
+
+        GitHub runners track the latest Python release; pyo3 0.22 only
+        supports up to Python 3.13. Without an explicit pin the macOS-latest
+        runner picks Python 3.14 and pyo3-ffi's build script aborts with
+        ``the configured Python interpreter version (3.14) is newer than
+        PyO3's maximum supported version``. Pinning here keeps the maturin
+        build deterministic across runner image rolls.
+        """
+        steps = self.job.get("steps", [])
+        setup_step = None
+        maturin_step = None
+        for idx, step in enumerate(steps):
+            if not step:
+                continue
+            uses = step.get("uses", "")
+            if uses.startswith("actions/setup-python@") and setup_step is None:
+                setup_step = (idx, step)
+            if uses.startswith("PyO3/maturin-action@") and maturin_step is None:
+                maturin_step = (idx, step)
+        self.assertIsNotNone(
+            setup_step,
+            "build-wheels must include an actions/setup-python@ step",
+        )
+        self.assertIsNotNone(maturin_step, "build-wheels must include maturin-action")
+        # setup-python must run BEFORE maturin so the pinned interpreter is on PATH.
+        self.assertLess(
+            setup_step[0],
+            maturin_step[0],
+            "setup-python must precede the maturin-action step",
+        )
+        version = str(setup_step[1].get("with", {}).get("python-version", ""))
+        self.assertTrue(
+            version.startswith("3.") and version != "3",
+            f"python-version must be pinned to a specific 3.x release; got {version!r}",
+        )
+        # pyo3 0.22 max supported is 3.13 — reject anything higher.
+        major, _, minor = version.partition(".")
+        self.assertEqual(major, "3")
+        self.assertLessEqual(
+            int(minor),
+            13,
+            f"pyo3 0.22 max supports Python 3.13; pinned {version}",
+        )
+
     def test_build_wheels_sets_manylinux_auto(self):
         """maturin-action step in build-wheels sets manylinux: auto.
 
