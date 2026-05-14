@@ -1,0 +1,6 @@
+[alias]
+# Lets `cargo xtask <subcommand>` resolve to the workspace's `xtask` binary.
+# Without this, `cargo xtask sync-check` (and friends) fails with
+# `error: no such command: 'xtask'` both locally and in CI. See the
+# cargo-xtask convention: https://github.com/matklad/cargo-xtask
+xtask = "run --package xtask --quiet --"
