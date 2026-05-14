@@ -16,12 +16,12 @@ rules-v1 = ["dep:zuit-analyzers"]
 plugins = ["dep:zuit-plugins"]
 
 [dependencies]
-zuit-core = { path = "../zuit-core" }
-zuit-analyzers = { path = "../zuit-analyzers", optional = true }
-zuit-lang-rust = { path = "../zuit-lang-rust", optional = true }
-zuit-lang-python = { path = "../zuit-lang-python", optional = true }
-zuit-lang-js = { path = "../zuit-lang-js", optional = true }
-zuit-plugins = { path = "../zuit-plugins", optional = true }
+zuit-core = { path = "../zuit-core", version = "0.1.0" }
+zuit-analyzers = { path = "../zuit-analyzers", version = "0.1.0", optional = true }
+zuit-lang-rust = { path = "../zuit-lang-rust", version = "0.1.0", optional = true }
+zuit-lang-python = { path = "../zuit-lang-python", version = "0.1.0", optional = true }
+zuit-lang-js = { path = "../zuit-lang-js", version = "0.1.0", optional = true }
+zuit-plugins = { path = "../zuit-plugins", version = "0.1.0", optional = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }

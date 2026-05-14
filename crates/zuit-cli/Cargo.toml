@@ -21,12 +21,12 @@ rules-v1 = ["zuit-registry/rules-v1"]
 plugins = ["zuit-registry/plugins"]
 
 [dependencies]
-zuit-core = { path = "../zuit-core" }
-zuit-plugins = { path = "../zuit-plugins" }
-zuit-registry = { path = "../zuit-registry", default-features = false }
-zuit-report = { path = "../zuit-report" }
-zuit-show = { path = "../zuit-show" }
-zuit-lsp = { path = "../zuit-lsp" }
+zuit-core = { path = "../zuit-core", version = "0.1.0" }
+zuit-plugins = { path = "../zuit-plugins", version = "0.1.0" }
+zuit-registry = { path = "../zuit-registry", version = "0.1.0", default-features = false }
+zuit-report = { path = "../zuit-report", version = "0.1.0" }
+zuit-show = { path = "../zuit-show", version = "0.1.0" }
+zuit-lsp = { path = "../zuit-lsp", version = "0.1.0" }
 clap = { workspace = true }
 clap_complete = { workspace = true }
 anyhow = { workspace = true }

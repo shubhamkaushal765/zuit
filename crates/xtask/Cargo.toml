@@ -6,6 +6,7 @@ rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
 description = "Development task runner for the zuit workspace (ci, lint, fmt, bench, doc)."
+publish = false
 
 [[bin]]
 name = "xtask"

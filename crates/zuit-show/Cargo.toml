@@ -8,7 +8,7 @@ repository.workspace = true
 description = "History store, HTTP server, and daemon for `zuit show`."
 
 [dependencies]
-zuit-core = { path = "../zuit-core" }
+zuit-core = { path = "../zuit-core", version = "0.1.0" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 toml = { workspace = true }

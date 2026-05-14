@@ -16,8 +16,8 @@ lang-js = ["zuit-registry/lang-js"]
 rules-v1 = ["zuit-registry/rules-v1"]
 
 [dependencies]
-zuit-core = { path = "../zuit-core" }
-zuit-registry = { path = "../zuit-registry", default-features = false }
+zuit-core = { path = "../zuit-core", version = "0.1.0" }
+zuit-registry = { path = "../zuit-registry", version = "0.1.0", default-features = false }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }

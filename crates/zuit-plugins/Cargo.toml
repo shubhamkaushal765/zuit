@@ -8,7 +8,7 @@ repository.workspace = true
 description = "Subprocess-based third-party analyzer plugins for zuit."
 
 [dependencies]
-zuit-core = { path = "../zuit-core" }
+zuit-core = { path = "../zuit-core", version = "0.1.0" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 toml = { workspace = true }

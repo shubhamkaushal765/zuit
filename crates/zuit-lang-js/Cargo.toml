@@ -8,7 +8,7 @@ repository.workspace = true
 description = "JavaScript/TypeScript language frontend (oxc_parser-backed) for zuit."
 
 [dependencies]
-zuit-core = { path = "../zuit-core" }
+zuit-core = { path = "../zuit-core", version = "0.1.0" }
 oxc_parser = { workspace = true }
 oxc_allocator = "0.128.0"
 oxc_ast = "0.128.0"

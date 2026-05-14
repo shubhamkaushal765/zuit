@@ -8,14 +8,14 @@ repository.workspace = true
 description = "Cross-language static analysis rules for zuit."
 
 [dependencies]
-zuit-core = { path = "../zuit-core" }
+zuit-core = { path = "../zuit-core", version = "0.1.0" }
 thiserror = { workspace = true }
 regex = { workspace = true }
 
 [dev-dependencies]
-zuit-lang-rust = { path = "../zuit-lang-rust" }
-zuit-lang-python = { path = "../zuit-lang-python" }
-zuit-lang-js = { path = "../zuit-lang-js" }
+zuit-lang-rust = { path = "../zuit-lang-rust", version = "0.1.0" }
+zuit-lang-python = { path = "../zuit-lang-python", version = "0.1.0" }
+zuit-lang-js = { path = "../zuit-lang-js", version = "0.1.0" }
 criterion = { workspace = true }
 tempfile = { workspace = true }
 proptest = { workspace = true }
