@@ -1,5 +1,9 @@
 [project]
 name = "zuit"
+# npm rejects `zuit` as too similar to `zuul`/`lit`/`exit`/etc., so the
+# Node distribution ships under a scoped name. Crate (crates.io) and
+# PyPI distributions keep the unscoped `zuit` name above.
+npm_name = "@cmjr765/zuit"
 version = "0.1.2"
 description = "Multi-language static analysis CLI emitting structured findings on multiple quality dimensions."
 license = "MIT"
