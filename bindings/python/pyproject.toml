@@ -8,7 +8,7 @@ build-backend = "maturin"
 
 [project]
 name = "zuit"
-version = "0.1.1"
+version = "0.1.2"
 description = "Multi-language static analysis CLI emitting structured findings on multiple quality dimensions."
 license = { text = "MIT" }
 readme = "README.md"

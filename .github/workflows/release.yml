@@ -125,37 +125,52 @@ jobs:
           packages-dir: dist
 
   # -------------------------------------------------------------------------
-  # build-npm: napi-rs build for Node.js
+  # build-npm: launcher-only sanity check for Node.js
   # -------------------------------------------------------------------------
   build-npm:
-    name: build-npm (${{ matrix.os }})
+    name: build-npm
     needs: verify
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
-      - name: install napi-rs CLI
+      - name: install dependencies
         working-directory: bindings/node
         run: npm install
-      - name: build napi package
+      - name: run tests
         working-directory: bindings/node
-        run: npm run build
-      - name: upload npm artifacts
+        run: npm test
+      - name: upload npm dist
         uses: actions/upload-artifact@v4
         with:
-          name: npm-${{ matrix.os }}
-          path: |
-            bindings/node/*.node
-            bindings/node/index.js
-            bindings/node/index.d.ts
-            bindings/node/package.json
-      # TODO: publish to npm
-      # - run: npm publish --access public
+          name: npm-dist
+          path: bindings/node
+
+  # -------------------------------------------------------------------------
+  # publish-to-npm: OIDC trusted publishing (no API token required)
+  # -------------------------------------------------------------------------
+  publish-to-npm:
+    name: publish-to-npm
+    needs: build-npm
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    environment: npm
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          registry-url: "https://registry.npmjs.org"
+      - name: download npm dist
+        uses: actions/download-artifact@v4
+        with:
+          name: npm-dist
+          path: bindings/node
+      - name: publish to npm via trusted publisher
+        working-directory: bindings/node
+        run: npm publish --provenance --access public

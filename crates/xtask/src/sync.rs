@@ -188,6 +188,8 @@ features = ["pyo3/extension-module"]
 /// Generate the full content of `bindings/node/package.json` from SSOT.
 ///
 /// The file is wholly managed; any local edits will be overwritten on sync.
+/// This generates a launcher-only package that ships `bin/zuit.js` without
+/// any native node module or napi-rs toolchain dependency.
 #[must_use]
 pub fn generate_package_json(meta: &ProjectMeta) -> String {
     let authors_str = meta.authors.join(", ");
@@ -203,29 +205,19 @@ pub fn generate_package_json(meta: &ProjectMeta) -> String {
     "type": "git",
     "url": "{repository}"
   }},
-  "main": "index.js",
-  "types": "index.d.ts",
   "bin": {{
     "zuit": "bin/zuit.js"
   }},
+  "files": [
+    "bin/zuit.js",
+    "README.md",
+    "LICENSE"
+  ],
   "engines": {{
     "node": ">=18"
   }},
-  "napi": {{
-    "name": "zuit",
-    "triples": {{
-      "defaults": true,
-      "additional": ["aarch64-apple-darwin", "aarch64-unknown-linux-gnu"]
-    }}
-  }},
   "scripts": {{
-    "build": "napi build --platform --release",
-    "build:debug": "napi build --platform",
-    "prepublishOnly": "napi prepublish -t npm",
-    "artifacts": "napi artifacts"
-  }},
-  "devDependencies": {{
-    "@napi-rs/cli": "^2.18.0"
+    "test": "node --test bin/zuit.test.js"
   }}
 }}
 "#,
@@ -510,9 +502,17 @@ name = "zuit"
         assert!(got.contains("\"version\": \"0.1.0\""));
         assert!(got.contains("\"license\": \"MIT\""));
         assert!(got.contains("Alice Example"));
-        // napi section.
-        assert!(got.contains("\"napi\""));
-        assert!(got.contains("\"name\": \"zuit\""));
+        // Launcher-only: no napi, no main, no types.
+        assert!(!got.contains("\"napi\""));
+        assert!(!got.contains("\"main\""));
+        assert!(!got.contains("\"types\""));
+        // files array present with expected entries.
+        assert!(got.contains("\"files\""));
+        assert!(got.contains("\"bin/zuit.js\""));
+        assert!(got.contains("\"README.md\""));
+        assert!(got.contains("\"LICENSE\""));
+        // test script wired.
+        assert!(got.contains("\"test\": \"node --test bin/zuit.test.js\""));
         // Node engine.
         assert!(got.contains("\">=18\""));
         // Valid JSON.
