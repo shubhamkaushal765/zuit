@@ -63,13 +63,59 @@ jobs:
           working-directory: bindings/python
           command: build
           args: --release --out dist
+          # `manylinux: auto` is only consulted on Linux runners and yields
+          # PyPI-compatible manylinux2014/2_28 wheels. It is a no-op on
+          # macOS/Windows runners, so a single value works for the matrix.
+          manylinux: auto
       - name: upload wheel artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: wheels-${{ matrix.os }}
+          name: dist-wheels-${{ matrix.os }}
           path: bindings/python/dist/
-      # TODO: publish to PyPI
-      # - run: twine upload dist/*
+
+  # -------------------------------------------------------------------------
+  # build-sdist: maturin source distribution
+  # -------------------------------------------------------------------------
+  build-sdist:
+    name: build-sdist
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: PyO3/maturin-action@v1
+        with:
+          working-directory: bindings/python
+          command: sdist
+          args: --out dist
+      - name: upload sdist artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-sdist
+          path: bindings/python/dist/
+
+  # -------------------------------------------------------------------------
+  # publish-to-pypi: OIDC trusted publishing (no API token required)
+  # -------------------------------------------------------------------------
+  publish-to-pypi:
+    name: publish-to-pypi
+    needs: [build-wheels, build-sdist]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - name: download all dist artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          pattern: dist-*
+          merge-multiple: true
+      - name: publish to PyPI via trusted publisher
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist
 
   # -------------------------------------------------------------------------
   # build-npm: napi-rs build for Node.js
