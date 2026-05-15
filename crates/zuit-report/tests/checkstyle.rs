@@ -154,19 +154,19 @@ fn render_checkstyle_severity_mapping() {
 
     loop {
         match reader.read_event().expect("xml parse error") {
-            quick_xml::events::Event::Start(e) | quick_xml::events::Event::Empty(e) => {
-                if e.name().as_ref() == b"error" {
-                    let mut source = String::new();
-                    let mut sev = String::new();
-                    for attr in e.attributes().flatten() {
-                        match attr.key.as_ref() {
-                            b"source" => source = String::from_utf8_lossy(&attr.value).into_owned(),
-                            b"severity" => sev = String::from_utf8_lossy(&attr.value).into_owned(),
-                            _ => {}
-                        }
+            quick_xml::events::Event::Start(e) | quick_xml::events::Event::Empty(e)
+                if e.name().as_ref() == b"error" =>
+            {
+                let mut source = String::new();
+                let mut sev = String::new();
+                for attr in e.attributes().flatten() {
+                    match attr.key.as_ref() {
+                        b"source" => source = String::from_utf8_lossy(&attr.value).into_owned(),
+                        b"severity" => sev = String::from_utf8_lossy(&attr.value).into_owned(),
+                        _ => {}
                     }
-                    severities.push((source, sev));
                 }
+                severities.push((source, sev));
             }
             quick_xml::events::Event::Eof => break,
             _ => {}

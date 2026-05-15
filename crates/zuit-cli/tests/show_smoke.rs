@@ -23,9 +23,7 @@ fn analyze_no_save_does_not_write_history() {
         .assert()
         .success();
     let zuit_home = home.path().join(".zuit");
-    let n = std::fs::read_dir(zuit_home.join("projects"))
-        .map(std::iter::Iterator::count)
-        .unwrap_or(0);
+    let n = std::fs::read_dir(zuit_home.join("projects")).map_or(0, std::iter::Iterator::count);
     assert_eq!(n, 0, "no projects should be recorded with --no-save");
 }
 

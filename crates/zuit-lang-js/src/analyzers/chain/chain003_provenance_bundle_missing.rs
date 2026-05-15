@@ -67,12 +67,7 @@ pub(crate) fn evaluate(root: &Path, dist_dir: &Path) -> Vec<Finding> {
     }
 
     let has_sigstore = std::fs::read_dir(dist_dir).ok().is_some_and(|mut entries| {
-        entries.any(|entry| {
-            entry
-                .as_ref()
-                .map(|e| is_sigstore_file(&e.path()))
-                .unwrap_or(false)
-        })
+        entries.any(|entry| entry.as_ref().is_ok_and(|e| is_sigstore_file(&e.path())))
     });
 
     if has_sigstore {

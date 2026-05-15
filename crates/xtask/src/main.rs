@@ -162,8 +162,7 @@ fn run(program: &str, args: &[&str]) -> bool {
     Command::new(program)
         .args(args)
         .status()
-        .map(|s| s.success())
-        .unwrap_or(false)
+        .is_ok_and(|s| s.success())
 }
 
 /// Print usage information.

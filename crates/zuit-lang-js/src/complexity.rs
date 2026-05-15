@@ -158,15 +158,11 @@ impl ComplexityCounter {
                     self.walk_expr(arg, depth);
                 }
             }
-            Statement::BreakStatement(s) => {
-                if s.label.is_some() {
-                    self.cognitive += 1;
-                }
+            Statement::BreakStatement(s) if s.label.is_some() => {
+                self.cognitive += 1;
             }
-            Statement::ContinueStatement(s) => {
-                if s.label.is_some() {
-                    self.cognitive += 1;
-                }
+            Statement::ContinueStatement(s) if s.label.is_some() => {
+                self.cognitive += 1;
             }
             Statement::BlockStatement(b) => {
                 self.walk_stmts(&b.body, depth);

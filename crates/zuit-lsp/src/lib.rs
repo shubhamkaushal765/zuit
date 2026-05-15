@@ -275,11 +275,7 @@ mod tests {
         let mut results = Vec::new();
         let mut remaining = text;
 
-        loop {
-            // Find next "Content-Length: N\r\n\r\n" header.
-            let Some(header_end) = remaining.find("\r\n\r\n") else {
-                break;
-            };
+        while let Some(header_end) = remaining.find("\r\n\r\n") {
             let header = &remaining[..header_end];
             let body_start = header_end + 4;
             let Some(len_str) = header.strip_prefix("Content-Length: ") else {

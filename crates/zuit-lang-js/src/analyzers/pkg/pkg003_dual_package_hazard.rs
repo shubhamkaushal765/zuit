@@ -60,15 +60,13 @@ fn json_contains_key(v: &serde_json::Value, key: &str) -> bool {
 
 /// Returns `true` if any `*.cjs` file exists directly inside `root`.
 fn has_cjs_file_at_root(root: &std::path::Path) -> bool {
-    std::fs::read_dir(root)
-        .map(|entries| {
-            entries.filter_map(Result::ok).any(|e| {
-                e.path()
-                    .extension()
-                    .is_some_and(|ext| ext.eq_ignore_ascii_case("cjs"))
-            })
+    std::fs::read_dir(root).is_ok_and(|entries| {
+        entries.filter_map(Result::ok).any(|e| {
+            e.path()
+                .extension()
+                .is_some_and(|ext| ext.eq_ignore_ascii_case("cjs"))
         })
-        .unwrap_or(false)
+    })
 }
 
 /// Analyzer that emits `PKG003-dual-package-hazard` when a package exposes

@@ -183,7 +183,7 @@ fn install_ctrlc_handler(running: std::sync::Arc<std::sync::atomic::AtomicBool>)
         // until the thread is collected at process exit.  This is intentionally
         // a no-op; the process terminates on SIGINT normally.
         loop {
-            std::thread::sleep(Duration::from_secs(3600));
+            std::thread::sleep(Duration::from_hours(1));
             if !running.load(std::sync::atomic::Ordering::Relaxed) {
                 break;
             }
