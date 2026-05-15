@@ -87,6 +87,8 @@ pub fn register(registry: &mut Registry) {
         analyzers::hardcoded_security_constant::HardcodedSecurityConstantAnalyzer,
     ));
 
+    registry.add_analyzer(Box::new(analyzers::log_injection::LogInjectionAnalyzer));
+
     // MAINT family
     registry.add_analyzer(Box::new(analyzers::empty_block::EmptyBlockAnalyzer));
     registry.add_analyzer(Box::new(
@@ -222,7 +224,7 @@ mod tests {
         register(&mut registry);
         assert_eq!(registry.language_count(), 1);
         // 1 (SEC101) + 1 (MAINT013) + 6 SOUND + 10 PKG + 5 HEALTH + 4 CHAIN
-        // + 3 PERF + 4 ECO + 5 CI + 4 external = 43 total.
-        assert_eq!(registry.analyzer_count(), 46);
+        // + 3 PERF + 4 ECO + 5 CI + 4 external + 1 (SEC015) = 47 total.
+        assert_eq!(registry.analyzer_count(), 47);
     }
 }

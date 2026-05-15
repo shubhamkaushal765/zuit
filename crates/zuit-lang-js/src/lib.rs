@@ -105,6 +105,7 @@ pub fn register(registry: &mut Registry) {
     registry.add_analyzer(Box::new(
         analyzers::hardcoded_security_constant::JsHardcodedSecurityConstantAnalyzer,
     ));
+    registry.add_analyzer(Box::new(analyzers::log_injection::JsLogInjectionAnalyzer));
     registry.add_analyzer(Box::new(analyzers::pkg::Pkg001InstallScriptAnalyzer));
     registry.add_analyzer(Box::new(analyzers::pkg::Pkg002MissingTypesAnalyzer));
     registry.add_analyzer(Box::new(analyzers::pkg::Pkg003DualPackageHazardAnalyzer));
@@ -185,7 +186,7 @@ mod tests {
     fn register_adds_analyzer() {
         let mut registry = Registry::new();
         register(&mut registry);
-        assert_eq!(registry.analyzer_count(), 26);
+        assert_eq!(registry.analyzer_count(), 27);
     }
 
     #[test]

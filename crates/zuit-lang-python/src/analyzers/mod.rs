@@ -17,5 +17,6 @@ pub mod eval_sink;
 pub mod external;
 pub mod hardcoded_security_constant;
 pub mod health;
+pub mod log_injection;
 pub mod perf;
 pub mod pkg;

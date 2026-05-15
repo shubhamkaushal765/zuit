@@ -94,6 +94,7 @@ const sidebars: SidebarsConfig = {
             'rules/SEC007-path-traversal',
             'rules/SEC012-hardcoded-security-constant',
             'rules/SEC013-bind-all-interfaces',
+            'rules/SEC015-log-injection',
             'rules/SEC101-rust-unsafe',
           ],
         },

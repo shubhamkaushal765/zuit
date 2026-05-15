@@ -19,7 +19,7 @@ use zuit_core::{ByteOffset, LanguageId, ParseError, ParsedFile, SourceFile, Span
 
 use crate::native_ast::{
     DomSinkKind, JsAssignmentSite, JsAst, JsBindCallSite, JsCallSite, JsCallee, JsDebugKind,
-    JsDomSink, JsImport, JsLiteralValue,
+    JsDomSink, JsImport, JsLiteralValue, JsLogCallSite,
 };
 
 /// Parses `source` as JavaScript or TypeScript and returns a populated
@@ -98,6 +98,10 @@ struct WalkCtx {
     bind_call_sites: Vec<JsBindCallSite>,
     /// Assignment sites for `SEC012-hardcoded-security-constant`.
     assignments: Vec<JsAssignmentSite>,
+    /// Log call sites for `SEC015-log-injection`.
+    log_calls: Vec<JsLogCallSite>,
+    /// Stack of enclosing function parameter lists, for SEC015.
+    current_fn_params: Vec<Vec<String>>,
 }
 
 impl WalkCtx {
@@ -112,6 +116,8 @@ impl WalkCtx {
             debug_calls: Vec::new(),
             bind_call_sites: Vec::new(),
             assignments: Vec::new(),
+            log_calls: Vec::new(),
+            current_fn_params: Vec::new(),
         }
     }
 }
@@ -153,6 +159,7 @@ fn extract_call_sites(program: &Program<'_>) -> JsAst {
         debug_calls: ctx.debug_calls,
         bind_call_sites: ctx.bind_call_sites,
         assignments: ctx.assignments,
+        log_calls: ctx.log_calls,
     }
 }
 
@@ -199,6 +206,111 @@ fn dom_sink_kind_for_call(callee: &Expression<'_>) -> Option<DomSinkKind> {
 /// These are the last segment names checked against both bare calls and the
 /// method name of member-expression calls.
 const BIND_CALLEE_NAMES: &[&str] = &["listen", "bind"];
+
+/// Log object names for `SEC015-log-injection` (last-segment of object identifier).
+const LOG_OBJECT_NAMES: &[&str] = &["console", "logger", "log"];
+
+/// Log method names for `SEC015-log-injection`.
+const LOG_METHOD_NAMES: &[&str] = &["log", "info", "debug", "warn", "error", "trace"];
+
+/// If `callee` is a log-style member expression (object.method), returns
+/// `Some("object.method")`, otherwise `None`.
+fn log_callee_name(callee: &Expression<'_>) -> Option<String> {
+    let Expression::StaticMemberExpression(member) = callee else {
+        return None;
+    };
+    let method = member.property.name.as_str();
+    if !LOG_METHOD_NAMES.contains(&method) {
+        return None;
+    }
+    let obj_name = match &member.object {
+        Expression::Identifier(id) => id.name.as_str().to_string(),
+        Expression::StaticMemberExpression(m) => m.property.name.as_str().to_string(),
+        _ => return None,
+    };
+    let obj_last = obj_name.split('.').next_back().unwrap_or(&obj_name);
+    if LOG_OBJECT_NAMES.contains(&obj_last) {
+        Some(format!("{obj_last}.{method}"))
+    } else {
+        None
+    }
+}
+
+/// Extracts the leading identifier from a JS/TS expression.
+fn js_leading_ident<'a>(expr: &'a Expression<'_>) -> Option<&'a str> {
+    match expr {
+        Expression::Identifier(id) => Some(id.name.as_str()),
+        Expression::StaticMemberExpression(m) => js_leading_ident(&m.object),
+        Expression::CallExpression(c) => js_leading_ident(&c.callee),
+        Expression::ComputedMemberExpression(m) => js_leading_ident(&m.object),
+        Expression::TSAsExpression(e) => js_leading_ident(&e.expression),
+        Expression::TSNonNullExpression(e) => js_leading_ident(&e.expression),
+        _ => None,
+    }
+}
+
+/// Extracts parameter names from a JS/TS function formal parameter list.
+fn collect_js_fn_params(params: &oxc_ast::ast::FormalParameters<'_>) -> Vec<String> {
+    params
+        .items
+        .iter()
+        .filter_map(|p| {
+            if let oxc_ast::ast::BindingPattern::BindingIdentifier(id) = &p.pattern {
+                Some(id.name.as_str().to_string())
+            } else {
+                None
+            }
+        })
+        .collect()
+}
+
+/// Extracts relevant data from a log call's argument list for SEC015.
+///
+/// Returns `(first_arg_string, first_arg_is_template_with_subst, arg_idents)`.
+///
+/// - `first_arg_string`: the string value of the first arg if it's a plain string literal.
+/// - `first_arg_is_template_with_subst`: `true` if the first arg is a template literal with
+///   at least one substitution expression.
+/// - `arg_idents`: leading identifier names from subsequent args AND from template
+///   literal substitution expressions (for template-literal detection).
+fn extract_log_call_args(args: &[Argument<'_>]) -> (Option<String>, bool, Vec<String>) {
+    let mut first_arg_string = None;
+    let mut first_arg_is_template_with_subst = false;
+    let mut arg_idents: Vec<String> = Vec::new();
+
+    if let Some(first) = args.first() {
+        match first.as_expression() {
+            Some(Expression::StringLiteral(s)) => {
+                first_arg_string = Some(s.value.to_string());
+            }
+            Some(Expression::TemplateLiteral(tpl)) if !tpl.expressions.is_empty() => {
+                first_arg_is_template_with_subst = true;
+                // Collect leading idents from template substitution expressions
+                for expr in &tpl.expressions {
+                    if let Some(ident) = js_leading_ident(expr) {
+                        arg_idents.push(ident.to_string());
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
+    // Collect leading idents from subsequent args
+    for arg in args.iter().skip(1) {
+        if let Some(expr) = arg.as_expression()
+            && let Some(ident) = js_leading_ident(expr)
+        {
+            arg_idents.push(ident.to_string());
+        }
+    }
+
+    (
+        first_arg_string,
+        first_arg_is_template_with_subst,
+        arg_idents,
+    )
+}
 
 /// Converts an oxc `Expression` to a [`JsLiteralValue`] if it is a plain literal.
 ///
@@ -439,11 +551,15 @@ fn walk_stmt(stmt: &Statement<'_>, out: &mut WalkCtx) {
         Statement::FunctionDeclaration(f) => {
             let prev = out.at_top_level;
             out.at_top_level = false;
+            // SEC015: push function params for log-injection param tracking.
+            let params = collect_js_fn_params(&f.params);
+            out.current_fn_params.push(params);
             if let Some(body) = &f.body {
                 for s in &body.statements {
                     walk_stmt(s, out);
                 }
             }
+            out.current_fn_params.pop();
             out.at_top_level = prev;
         }
         Statement::ClassDeclaration(c) => {
@@ -453,9 +569,13 @@ fn walk_stmt(stmt: &Statement<'_>, out: &mut WalkCtx) {
                 if let oxc_ast::ast::ClassElement::MethodDefinition(m) = elt
                     && let Some(body) = &m.value.body
                 {
+                    // SEC015: push method params for log-injection param tracking.
+                    let params = collect_js_fn_params(&m.value.params);
+                    out.current_fn_params.push(params);
                     for s in &body.statements {
                         walk_stmt(s, out);
                     }
+                    out.current_fn_params.pop();
                 }
             }
             out.at_top_level = prev;
@@ -483,20 +603,26 @@ fn walk_stmt(stmt: &Statement<'_>, out: &mut WalkCtx) {
 fn walk_decl(decl: &oxc_ast::ast::Declaration<'_>, out: &mut WalkCtx) {
     match decl {
         oxc_ast::ast::Declaration::FunctionDeclaration(f) => {
+            let params = collect_js_fn_params(&f.params);
+            out.current_fn_params.push(params);
             if let Some(body) = &f.body {
                 for s in &body.statements {
                     walk_stmt(s, out);
                 }
             }
+            out.current_fn_params.pop();
         }
         oxc_ast::ast::Declaration::ClassDeclaration(c) => {
             for elt in &c.body.body {
                 if let oxc_ast::ast::ClassElement::MethodDefinition(m) = elt
                     && let Some(body) = &m.value.body
                 {
+                    let params = collect_js_fn_params(&m.value.params);
+                    out.current_fn_params.push(params);
                     for s in &body.statements {
                         walk_stmt(s, out);
                     }
+                    out.current_fn_params.pop();
                 }
             }
         }
@@ -582,6 +708,20 @@ fn walk_expr(expr: &Expression<'_>, out: &mut WalkCtx) {
                     span: oxc_span_to_core(call.span),
                 });
             }
+            // SEC015: detect log-injection patterns.
+            if let Some(callee_name) = log_callee_name(&call.callee) {
+                let enclosing_fn_params = out.current_fn_params.last().cloned().unwrap_or_default();
+                let (first_arg_string, first_arg_is_template_with_subst, arg_idents) =
+                    extract_log_call_args(&call.arguments);
+                out.log_calls.push(JsLogCallSite {
+                    callee_name,
+                    first_arg_string,
+                    first_arg_is_template_with_subst,
+                    arg_idents,
+                    enclosing_fn_params,
+                    span: oxc_span_to_core(call.span),
+                });
+            }
             // Recurse into callee (handles `Function('x')()` — the inner
             // `Function('x')` is the callee of the outer call).
             walk_expr(&call.callee, out);
@@ -630,19 +770,25 @@ fn walk_expr(expr: &Expression<'_>, out: &mut WalkCtx) {
         Expression::ArrowFunctionExpression(arrow) => {
             let prev = out.at_top_level;
             out.at_top_level = false;
+            let params = collect_js_fn_params(&arrow.params);
+            out.current_fn_params.push(params);
             for stmt in &arrow.body.statements {
                 walk_stmt(stmt, out);
             }
+            out.current_fn_params.pop();
             out.at_top_level = prev;
         }
         Expression::FunctionExpression(f) => {
             let prev = out.at_top_level;
             out.at_top_level = false;
+            let params = collect_js_fn_params(&f.params);
+            out.current_fn_params.push(params);
             if let Some(body) = &f.body {
                 for s in &body.statements {
                     walk_stmt(s, out);
                 }
             }
+            out.current_fn_params.pop();
             out.at_top_level = prev;
         }
         Expression::ClassExpression(c) => {
@@ -652,9 +798,12 @@ fn walk_expr(expr: &Expression<'_>, out: &mut WalkCtx) {
                 if let oxc_ast::ast::ClassElement::MethodDefinition(m) = elt
                     && let Some(body) = &m.value.body
                 {
+                    let params = collect_js_fn_params(&m.value.params);
+                    out.current_fn_params.push(params);
                     for s in &body.statements {
                         walk_stmt(s, out);
                     }
+                    out.current_fn_params.pop();
                 }
             }
             out.at_top_level = prev;

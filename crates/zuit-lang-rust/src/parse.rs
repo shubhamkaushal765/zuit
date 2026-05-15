@@ -62,6 +62,27 @@ pub(crate) struct RustAssignmentSite {
     pub(crate) span: Span,
 }
 
+/// A log call site extracted for `SEC015-log-injection`.
+///
+/// Populated by [`Extractor`] for macro invocations named `trace`, `debug`,
+/// `info`, `warn`, `error`, `log` (with or without `log::` / `tracing::` path
+/// prefix).  Macro bodies are parsed via regex over the token-string (not a
+/// full AST), which is noted in analyzer messages.
+#[derive(Debug, Clone)]
+#[allow(dead_code)] // fields consumed by SEC015 analyzer
+pub(crate) struct RustLogCallSite {
+    /// Last segment of the macro name (e.g. `"info"`, `"debug"`).
+    pub(crate) callee_name: String,
+    /// The first string literal found in the macro body, if any.
+    pub(crate) first_arg_string: Option<String>,
+    /// Identifier tokens that follow the first string argument (comma-separated).
+    pub(crate) arg_idents: Vec<String>,
+    /// Parameter names of the immediately enclosing function, if any.
+    pub(crate) enclosing_fn_params: Vec<String>,
+    /// Byte span of the macro invocation.
+    pub(crate) span: Span,
+}
+
 /// A server-bind call site extracted for `SEC013-bind-all-interfaces`.
 ///
 /// Populated by [`Extractor`] for function calls whose path last segment is in
@@ -168,6 +189,13 @@ pub(crate) struct RustAst {
     /// `name = <literal>` assignments, and `const`/`static` declarations
     /// whose identifier name substring-matches a security keyword.
     pub(crate) assignments: Vec<RustAssignmentSite>,
+
+    /// Log call sites for `SEC015-log-injection`.
+    ///
+    /// Populated by [`Extractor`] for macro invocations named `trace`, `debug`,
+    /// `info`, `warn`, `error`, `log` (with/without `log::`/`tracing::` prefix).
+    /// Macro bodies are parsed via regex over the token-string.
+    pub(crate) log_calls: Vec<RustLogCallSite>,
 
     /// Spans of `pub struct` declarations that contain a raw pointer field
     /// (`*mut T` or `*const T`) without an accompanying `unsafe impl Send`
@@ -324,6 +352,132 @@ fn is_transmute_path(path: &syn::Path) -> bool {
         .is_some_and(|seg| seg.ident == "transmute")
 }
 
+// ── Log-macro body parser (regex-style) for SEC015 ───────────────────────────
+
+/// Log macro names for `SEC015-log-injection` detection.
+const LOG_MACRO_NAMES_SEC015: &[&str] = &["trace", "debug", "info", "warn", "error", "log"];
+
+/// Parses a log macro body token string (e.g. `"user: {}" , req`) into:
+/// - The first string literal (content between `"…"`)
+/// - Subsequent identifier tokens (comma-separated after the first arg)
+///
+/// This is a best-effort regex parse, not a full AST parse. Results are
+/// approximate for complex expressions.
+fn parse_log_macro_body(body: &str) -> (Option<String>, Vec<String>) {
+    let body = body.trim();
+
+    // Extract the first double-quoted string literal (handles escaped quotes).
+    let first_arg_string = extract_first_string_literal(body);
+
+    // Extract subsequent comma-separated leading identifiers.
+    // Strategy: find the end of the first argument, then split remaining by `,`
+    // and take the first identifier token of each part.
+    let arg_idents = extract_arg_idents_after_first(body);
+
+    (first_arg_string, arg_idents)
+}
+
+/// Extracts the content of the first `"..."` string literal in `body`.
+fn extract_first_string_literal(body: &str) -> Option<String> {
+    let start = body.find('"')?;
+    let rest = &body[start + 1..];
+    let mut result = String::new();
+    let mut chars = rest.chars().peekable();
+    loop {
+        match chars.next()? {
+            '\\' => {
+                // Skip next char (escape sequence)
+                chars.next();
+            }
+            '"' => return Some(result),
+            c => result.push(c),
+        }
+    }
+}
+
+/// Extracts leading identifier names from arguments after the first argument
+/// in a macro body string.
+///
+/// Splits by top-level commas (respecting brace/paren depth), skips the first
+/// segment (the format string), and returns the first identifier token of each
+/// remaining segment.
+fn extract_arg_idents_after_first(body: &str) -> Vec<String> {
+    let segments = split_top_level_commas(body);
+    let mut idents = Vec::new();
+    // Skip the first segment (format string / target)
+    for seg in segments.into_iter().skip(1) {
+        let seg = seg.trim();
+        if let Some(ident) = first_ident_in(seg) {
+            idents.push(ident);
+        }
+    }
+    idents
+}
+
+/// Splits `s` by commas that are not inside `{…}`, `(…)`, or `[…]`.
+fn split_top_level_commas(s: &str) -> Vec<String> {
+    let mut result = Vec::new();
+    let mut current = String::new();
+    let mut depth = 0i32;
+    for ch in s.chars() {
+        match ch {
+            '(' | '{' | '[' => {
+                depth += 1;
+                current.push(ch);
+            }
+            ')' | '}' | ']' => {
+                depth -= 1;
+                current.push(ch);
+            }
+            ',' if depth == 0 => {
+                result.push(current.clone());
+                current.clear();
+            }
+            _ => current.push(ch),
+        }
+    }
+    if !current.trim().is_empty() {
+        result.push(current);
+    }
+    result
+}
+
+/// Extracts the first Rust identifier from a string slice.
+fn first_ident_in(s: &str) -> Option<String> {
+    // Skip leading whitespace and method-call/field-access chains to get the
+    // root identifier.
+    let s = s.trim();
+    // If it starts with a non-identifier char, skip it
+    let start = s.find(|c: char| c.is_ascii_alphabetic() || c == '_')?;
+    let rest = &s[start..];
+    let end = rest
+        .find(|c: char| !c.is_ascii_alphanumeric() && c != '_')
+        .unwrap_or(rest.len());
+    let ident = &rest[..end];
+    if ident.is_empty() {
+        None
+    } else {
+        Some(ident.to_string())
+    }
+}
+
+/// Extracts function parameter names from a `syn::Signature`.
+fn collect_sig_params(sig: &syn::Signature) -> Vec<String> {
+    sig.inputs
+        .iter()
+        .filter_map(|arg| match arg {
+            syn::FnArg::Typed(pt) => {
+                if let syn::Pat::Ident(pi) = &*pt.pat {
+                    Some(pi.ident.to_string())
+                } else {
+                    None
+                }
+            }
+            syn::FnArg::Receiver(_) => None,
+        })
+        .collect()
+}
+
 // ── syn visitor for pre-extraction ───────────────────────────────────────────
 
 use syn::spanned::Spanned;
@@ -342,6 +496,8 @@ struct Extractor<'src> {
     debug_calls: Vec<(Span, RustDebugKind)>,
     bind_call_sites: Vec<RustCallSite>,
     assignments: Vec<RustAssignmentSite>,
+    /// Log call sites for `SEC015-log-injection`.
+    log_calls: Vec<RustLogCallSite>,
 
     source: &'src SourceFile,
     /// `true` while inside an `extern "…"` block.
@@ -351,6 +507,8 @@ struct Extractor<'src> {
     pending_pub_struct_raw_ptr: Vec<Span>,
     /// Whether we've seen any `unsafe impl Send` in the file.
     has_unsafe_impl_send: bool,
+    /// Stack of enclosing function parameter lists, for SEC015.
+    current_fn_params: Vec<Vec<String>>,
 }
 
 impl<'src> Extractor<'src> {
@@ -368,10 +526,12 @@ impl<'src> Extractor<'src> {
             debug_calls: Vec::new(),
             bind_call_sites: Vec::new(),
             assignments: Vec::new(),
+            log_calls: Vec::new(),
             source,
             in_foreign_mod: false,
             pending_pub_struct_raw_ptr: Vec::new(),
             has_unsafe_impl_send: false,
+            current_fn_params: Vec::new(),
         }
     }
 
@@ -554,7 +714,11 @@ impl<'ast> Visit<'ast> for Extractor<'_> {
             self.unsafe_with_parser_calls.push(span);
         }
 
+        // SEC015: push this function's parameter names for log-injection detection.
+        let params = collect_sig_params(&node.sig);
+        self.current_fn_params.push(params);
         syn::visit::visit_item_fn(self, node);
+        self.current_fn_params.pop();
     }
 
     fn visit_item_impl(&mut self, node: &'ast syn::ItemImpl) {
@@ -604,14 +768,22 @@ impl<'ast> Visit<'ast> for Extractor<'_> {
             self.unsafe_with_parser_calls.push(span);
         }
 
+        // SEC015: push this function's parameter names for log-injection detection.
+        let params = collect_sig_params(&node.sig);
+        self.current_fn_params.push(params);
         syn::visit::visit_impl_item_fn(self, node);
+        self.current_fn_params.pop();
     }
 
     fn visit_trait_item_fn(&mut self, node: &'ast syn::TraitItemFn) {
         if node.sig.unsafety.is_some() {
             self.push_unsafe_item(node.sig.fn_token.span, "fn");
         }
+        // SEC015: push this function's parameter names for log-injection detection.
+        let params = collect_sig_params(&node.sig);
+        self.current_fn_params.push(params);
         syn::visit::visit_trait_item_fn(self, node);
+        self.current_fn_params.pop();
     }
 
     fn visit_item_foreign_mod(&mut self, node: &'ast syn::ItemForeignMod) {
@@ -727,6 +899,7 @@ impl<'ast> Visit<'ast> for Extractor<'_> {
     }
 
     // MAINT011: detect debug-code macros (dbg!, println!, eprintln!).
+    // SEC015: detect log-injection in logging macros.
     fn visit_macro(&mut self, node: &'ast syn::Macro) {
         let name = node
             .path
@@ -744,6 +917,22 @@ impl<'ast> Visit<'ast> for Extractor<'_> {
             let span = proc_span_to_byte_span(node.path.span(), self.source);
             self.debug_calls.push((span, k));
         }
+
+        // SEC015: detect log/tracing macro invocations.
+        if LOG_MACRO_NAMES_SEC015.contains(&name.as_str()) {
+            let span = proc_span_to_byte_span(node.path.span(), self.source);
+            let body = node.tokens.to_string();
+            let enclosing_fn_params = self.current_fn_params.last().cloned().unwrap_or_default();
+            let (first_arg_string, arg_idents) = parse_log_macro_body(&body);
+            self.log_calls.push(RustLogCallSite {
+                callee_name: name,
+                first_arg_string,
+                arg_idents,
+                enclosing_fn_params,
+                span,
+            });
+        }
+
         syn::visit::visit_macro(self, node);
     }
 
@@ -865,6 +1054,7 @@ pub(crate) fn parse(source: Arc<SourceFile>) -> Result<ParsedFile, ParseError> {
             debug_calls: extractor.debug_calls,
             bind_call_sites: extractor.bind_call_sites,
             assignments: extractor.assignments,
+            log_calls: extractor.log_calls,
             pub_struct_with_raw_ptr,
         })
     };

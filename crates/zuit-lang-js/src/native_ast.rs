@@ -187,6 +187,12 @@ pub struct JsAst {
     /// Populated for variable declarations and assignment expressions whose LHS
     /// is a bare identifier and whose RHS is a literal value.
     pub assignments: Vec<JsAssignmentSite>,
+
+    /// Log call sites for `SEC015-log-injection`.
+    ///
+    /// Populated for `CallExpression`s with a logging callee shape
+    /// (e.g. `logger.info(...)`, `console.log(...)`, `log.warn(...)`).
+    pub log_calls: Vec<JsLogCallSite>,
 }
 
 /// A literal value extracted from an assignment/declaration RHS for SEC012.
@@ -223,6 +229,30 @@ pub struct JsBindCallSite {
     pub callee_name: String,
     /// The string value of the first argument, if it is a plain string literal.
     pub first_arg_string_value: Option<String>,
+    /// Full byte span of the call expression.
+    pub span: Span,
+}
+
+/// A log call site extracted for `SEC015-log-injection`.
+///
+/// Populated for `CallExpression`s whose callee is a `MemberExpression` with
+/// an object whose last-segment name is in `["console","logger","log"]` and
+/// whose property name is in `["log","info","debug","warn","error","trace"]`.
+#[derive(Debug, Clone)]
+#[allow(dead_code)] // fields consumed by SEC015 analyzer
+pub struct JsLogCallSite {
+    /// The callee name as `"object.method"` (e.g. `"logger.info"`).
+    pub callee_name: String,
+    /// The string value of the first argument, if it is a plain string literal.
+    pub first_arg_string: Option<String>,
+    /// `true` when the first argument is a `TemplateLiteral` with at least one
+    /// expression substitution.
+    pub first_arg_is_template_with_subst: bool,
+    /// Leading identifier names of arguments after the first, and of template
+    /// expressions within the first arg (for template-literal detection).
+    pub arg_idents: Vec<String>,
+    /// Parameter names of the immediately enclosing function, if any.
+    pub enclosing_fn_params: Vec<String>,
     /// Full byte span of the call expression.
     pub span: Span,
 }
