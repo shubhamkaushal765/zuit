@@ -17,7 +17,9 @@ use oxc_span::SourceType;
 
 use zuit_core::{ByteOffset, LanguageId, ParseError, ParsedFile, SourceFile, Span};
 
-use crate::native_ast::{DomSinkKind, JsAst, JsCallSite, JsCallee, JsDomSink, JsImport};
+use crate::native_ast::{
+    DomSinkKind, JsAst, JsCallSite, JsCallee, JsDebugKind, JsDomSink, JsImport,
+};
 
 /// Parses `source` as JavaScript or TypeScript and returns a populated
 /// [`ParsedFile`].
@@ -89,6 +91,8 @@ struct WalkCtx {
     at_top_level: bool,
     /// Byte spans of empty blocks for `MAINT013-empty-block`.
     empty_blocks: Vec<Span>,
+    /// Debug-code call sites for `MAINT011-active-debug-code`.
+    debug_calls: Vec<(Span, JsDebugKind)>,
 }
 
 impl WalkCtx {
@@ -100,6 +104,7 @@ impl WalkCtx {
             top_level_calls: Vec::new(),
             at_top_level: true,
             empty_blocks: Vec::new(),
+            debug_calls: Vec::new(),
         }
     }
 }
@@ -138,6 +143,7 @@ fn extract_call_sites(program: &Program<'_>) -> JsAst {
         imports: ctx.imports,
         top_level_calls: ctx.top_level_calls,
         empty_blocks: ctx.empty_blocks,
+        debug_calls: ctx.debug_calls,
     }
 }
 
@@ -177,6 +183,27 @@ fn dom_sink_kind_for_call(callee: &Expression<'_>) -> Option<DomSinkKind> {
         }
         _ => None,
     }
+}
+
+/// Returns the [`JsDebugKind`] for a `console.log/debug/trace` call, if any.
+///
+/// Only flags `log`, `debug`, and `trace` — `error`, `warn`, and `info` are
+/// intentionally excluded (legitimate in production error-reporting paths).
+fn debug_kind_for_call(callee: &Expression<'_>) -> Option<JsDebugKind> {
+    let Expression::StaticMemberExpression(member) = callee else {
+        return None;
+    };
+    if let Expression::Identifier(obj) = &member.object
+        && obj.name.as_str() == "console"
+    {
+        return match member.property.name.as_str() {
+            "log" => Some(JsDebugKind::ConsoleLog),
+            "debug" => Some(JsDebugKind::ConsoleDebug),
+            "trace" => Some(JsDebugKind::ConsoleTrace),
+            _ => None,
+        };
+    }
+    None
 }
 
 /// Classifies an assignment target as a [`DomSinkKind`], if it is a member
@@ -359,7 +386,12 @@ fn walk_stmt(stmt: &Statement<'_>, out: &mut WalkCtx) {
                 walk_expr(expr, out);
             }
         }
-        // break, continue, debugger, import declarations, TS decls — no calls.
+        // MAINT011: debugger statement.
+        Statement::DebuggerStatement(d) => {
+            out.debug_calls
+                .push((oxc_span_to_core(d.span), JsDebugKind::DebuggerStmt));
+        }
+        // break, continue, import declarations, TS decls — no calls.
         _ => {}
     }
 }
@@ -441,6 +473,12 @@ fn walk_expr(expr: &Expression<'_>, out: &mut WalkCtx) {
                     kind,
                     span: oxc_span_to_core(call.span),
                 });
+            }
+            // MAINT011: console.log / console.debug / console.trace
+            // Excludes console.error, console.warn, console.info (legitimate).
+            if let Some(debug_kind) = debug_kind_for_call(&call.callee) {
+                out.debug_calls
+                    .push((oxc_span_to_core(call.span), debug_kind));
             }
             // Recurse into callee (handles `Function('x')()` — the inner
             // `Function('x')` is the callee of the outer call).

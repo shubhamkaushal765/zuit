@@ -13,6 +13,7 @@
 //! - [`external`]: external-tool adapters (`cargo audit`, `cargo clippy`,
 //!   `cargo geiger`, `cargo deny`).
 
+pub mod active_debug_code;
 pub mod chain;
 pub mod ci;
 pub mod eco;

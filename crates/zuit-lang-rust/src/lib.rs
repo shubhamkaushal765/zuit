@@ -83,6 +83,9 @@ pub fn register(registry: &mut Registry) {
 
     // MAINT family
     registry.add_analyzer(Box::new(analyzers::empty_block::EmptyBlockAnalyzer));
+    registry.add_analyzer(Box::new(
+        analyzers::active_debug_code::ActiveDebugCodeAnalyzer,
+    ));
 
     // SOUND family
     registry.add_analyzer(Box::new(
@@ -214,6 +217,6 @@ mod tests {
         assert_eq!(registry.language_count(), 1);
         // 1 (SEC101) + 1 (MAINT013) + 6 SOUND + 10 PKG + 5 HEALTH + 4 CHAIN
         // + 3 PERF + 4 ECO + 5 CI + 4 external = 43 total.
-        assert_eq!(registry.analyzer_count(), 43);
+        assert_eq!(registry.analyzer_count(), 44);
     }
 }

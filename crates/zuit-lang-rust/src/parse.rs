@@ -33,6 +33,20 @@ pub(crate) struct UnsafeItem {
     pub(crate) label: &'static str,
 }
 
+/// Kind of debug-code macro call extracted for `MAINT011-active-debug-code`.
+///
+/// Defined here (not in `zuit-core`) per the per-rule extractor architecture
+/// decision: language-specific enums stay in their language crate.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum RustDebugKind {
+    /// `dbg!(…)` — always flagged (`Severity::Medium`).
+    Dbg,
+    /// `println!(…)` — only flagged when config `MAINT011.flag_println = true`.
+    Println,
+    /// `eprintln!(…)` — only flagged when config `MAINT011.flag_println = true`.
+    Eprintln,
+}
+
 /// The concrete native AST produced by the Rust frontend.
 ///
 /// This type is `pub(crate)` so it is accessible to language-specific analyzers
@@ -87,6 +101,15 @@ pub(crate) struct RustAst {
     /// Empty `ExprLoop` is intentionally excluded (tracked by MAINT010).
     /// Empty function bodies are intentionally excluded (often intentional stubs).
     pub(crate) empty_blocks: Vec<Span>,
+
+    /// Active debug-code macro invocations.
+    ///
+    /// Populated by [`Extractor`] for `MAINT011-active-debug-code`.
+    /// Contains `(span, kind)` for each flagged macro call site:
+    /// - `dbg!(…)` → [`RustDebugKind::Dbg`] (always flagged)
+    /// - `println!(…)` → [`RustDebugKind::Println`] (only when `flag_println` enabled)
+    /// - `eprintln!(…)` → [`RustDebugKind::Eprintln`] (only when `flag_println` enabled)
+    pub(crate) debug_calls: Vec<(Span, RustDebugKind)>,
 
     /// Spans of `pub struct` declarations that contain a raw pointer field
     /// (`*mut T` or `*const T`) without an accompanying `unsafe impl Send`
@@ -193,6 +216,7 @@ struct Extractor<'src> {
     extern_unsafe_fns_no_doc: Vec<Span>,
     clone_in_iter_chains: Vec<Span>,
     empty_blocks: Vec<Span>,
+    debug_calls: Vec<(Span, RustDebugKind)>,
 
     source: &'src SourceFile,
     /// `true` while inside an `extern "…"` block.
@@ -216,6 +240,7 @@ impl<'src> Extractor<'src> {
             extern_unsafe_fns_no_doc: Vec::new(),
             clone_in_iter_chains: Vec::new(),
             empty_blocks: Vec::new(),
+            debug_calls: Vec::new(),
             source,
             in_foreign_mod: false,
             pending_pub_struct_raw_ptr: Vec::new(),
@@ -543,6 +568,27 @@ impl<'ast> Visit<'ast> for Extractor<'_> {
         syn::visit::visit_expr_while(self, node);
     }
 
+    // MAINT011: detect debug-code macros (dbg!, println!, eprintln!).
+    fn visit_macro(&mut self, node: &'ast syn::Macro) {
+        let name = node
+            .path
+            .segments
+            .last()
+            .map(|s| s.ident.to_string())
+            .unwrap_or_default();
+        let kind = match name.as_str() {
+            "dbg" => Some(RustDebugKind::Dbg),
+            "println" => Some(RustDebugKind::Println),
+            "eprintln" => Some(RustDebugKind::Eprintln),
+            _ => None,
+        };
+        if let Some(k) = kind {
+            let span = proc_span_to_byte_span(node.path.span(), self.source);
+            self.debug_calls.push((span, k));
+        }
+        syn::visit::visit_macro(self, node);
+    }
+
     fn visit_item_struct(&mut self, node: &'ast syn::ItemStruct) {
         // ECO003: pub struct with raw pointer field.
         if Self::is_pub(&node.vis) && Self::struct_has_raw_ptr_field(&node.fields) {
@@ -597,6 +643,7 @@ pub(crate) fn parse(source: Arc<SourceFile>) -> Result<ParsedFile, ParseError> {
             extern_unsafe_fns_no_doc: extractor.extern_unsafe_fns_no_doc,
             clone_in_iter_chains: extractor.clone_in_iter_chains,
             empty_blocks: extractor.empty_blocks,
+            debug_calls: extractor.debug_calls,
             pub_struct_with_raw_ptr,
         })
     };

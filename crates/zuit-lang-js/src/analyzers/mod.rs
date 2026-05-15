@@ -3,6 +3,7 @@
 //! All analyzers in this module implement [`zuit_core::Analyzer`] and are
 //! registered alongside the language frontend via [`crate::register`].
 
+pub mod active_debug_code;
 pub mod chain;
 pub mod empty_block;
 pub mod eval_sink;

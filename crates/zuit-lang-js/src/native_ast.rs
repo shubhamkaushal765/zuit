@@ -102,6 +102,22 @@ pub struct JsImport {
     pub span: Span,
 }
 
+/// Kind of debug-code construct extracted for `MAINT011-active-debug-code`.
+///
+/// Defined in `zuit-lang-js` (not `zuit-core`) per the per-rule extractor
+/// architecture decision.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum JsDebugKind {
+    /// `debugger;` statement — always flagged (`Severity::Medium`).
+    DebuggerStmt,
+    /// `console.log(…)` call — flagged (`Severity::Low`).
+    ConsoleLog,
+    /// `console.debug(…)` call — flagged (`Severity::Low`).
+    ConsoleDebug,
+    /// `console.trace(…)` call — flagged (`Severity::Low`).
+    ConsoleTrace,
+}
+
 /// Pre-extracted data from a JS/TS source file stored in the [`zuit_core::ParsedFile`]
 /// native slot.
 ///
@@ -135,6 +151,18 @@ pub struct JsAst {
     /// Empty `catch` clauses whose parameter is absent or named `_` are
     /// intentional swallow idioms and are **excluded**.
     pub empty_blocks: Vec<Span>,
+
+    /// Active debug-code call sites for `MAINT011-active-debug-code`.
+    ///
+    /// Contains `(span, kind)` for each flagged construct:
+    /// - `debugger;` → [`JsDebugKind::DebuggerStmt`] (`Severity::Medium`)
+    /// - `console.log(…)` → [`JsDebugKind::ConsoleLog`] (`Severity::Low`)
+    /// - `console.debug(…)` → [`JsDebugKind::ConsoleDebug`] (`Severity::Low`)
+    /// - `console.trace(…)` → [`JsDebugKind::ConsoleTrace`] (`Severity::Low`)
+    ///
+    /// `console.error`, `console.warn`, and `console.info` are intentionally
+    /// **excluded** (legitimate in production error paths).
+    pub debug_calls: Vec<(Span, JsDebugKind)>,
 }
 
 // JsAst contains only Vec<JsCallSite> and Vec<JsDomSink> where both hold plain
