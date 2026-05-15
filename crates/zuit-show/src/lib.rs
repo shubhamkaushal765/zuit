@@ -3,7 +3,6 @@
 
 pub mod analytics;
 pub mod assets;
-#[cfg(unix)]
 pub mod daemon;
 pub mod error;
 pub mod hash;

@@ -1,5 +1,7 @@
 //! Daemon lifecycle: PID file, double-fork, healthz reuse. See spec §7.
-#![cfg(unix)]
+//!
+//! Unix-only implementation. The parent [`daemon`](super) module gates this
+//! behind `#[cfg(unix)]` and exposes a [stub](super::windows) on other targets.
 // The double-fork sequence (POSIX daemon idiom) requires two `unsafe { fork() }` calls.
 // `nix::unistd::fork` is marked unsafe because forking a multi-threaded process is
 // hazardous; we call it only before any threads are spawned, making it sound.
