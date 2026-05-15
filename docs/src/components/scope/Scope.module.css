@@ -54,3 +54,44 @@
   color: var(--cl-accent-primary);
   border-color: var(--cl-accent-primary);
 }
+
+/* StatRow */
+
+.statRow {
+  list-style: none;
+  margin: 0 0 1.25rem;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.625rem;
+}
+
+.statCard {
+  background: var(--cl-surface-card);
+  border: 0.5px solid var(--cl-border-muted);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.statValue {
+  font-size: 22px;
+  font-weight: 500;
+  line-height: 1.1;
+  color: var(--cl-text-primary);
+}
+
+.statLabel {
+  font-size: 11px;
+  color: var(--cl-text-muted);
+  margin-top: 2px;
+}
+
+.statCard[data-accent="info"]     .statValue { color: var(--cl-state-info-text); }
+.statCard[data-accent="success"]  .statValue { color: var(--cl-state-tip-text); }
+.statCard[data-accent="warning"]  .statValue { color: var(--cl-state-caution-text); }
+.statCard[data-accent="primary"]  .statValue { color: var(--cl-accent-primary); }
+/* neutral: inherits .statValue default */
