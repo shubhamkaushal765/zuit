@@ -33,6 +33,21 @@ pub(crate) struct UnsafeItem {
     pub(crate) label: &'static str,
 }
 
+/// A server-bind call site extracted for `SEC013-bind-all-interfaces`.
+///
+/// Populated by [`Extractor`] for function calls whose path last segment is in
+/// the bind allowlist.  Stored in [`RustAst::bind_call_sites`].
+#[derive(Debug, Clone)]
+pub(crate) struct RustCallSite {
+    /// Last segment of the callee path (e.g. `"bind"`, `"listen"`).
+    pub(crate) callee_name: String,
+    /// The literal string value of the first argument, if it is a plain string
+    /// literal.  `None` when the first argument is absent or non-string.
+    pub(crate) first_arg_string_value: Option<String>,
+    /// Byte span of the call expression.
+    pub(crate) span: Span,
+}
+
 /// Kind of debug-code macro call extracted for `MAINT011-active-debug-code`.
 ///
 /// Defined here (not in `zuit-core`) per the per-rule extractor architecture
@@ -111,6 +126,13 @@ pub(crate) struct RustAst {
     /// - `eprintln!(…)` → [`RustDebugKind::Eprintln`] (only when `flag_println` enabled)
     pub(crate) debug_calls: Vec<(Span, RustDebugKind)>,
 
+    /// Server-bind call sites for `SEC013-bind-all-interfaces`.
+    ///
+    /// Populated by [`Extractor`] for function-call expressions whose path last
+    /// segment is in the bind allowlist (e.g. `TcpListener::bind`,
+    /// `HttpServer::bind`, `Server::bind`, etc.).
+    pub(crate) bind_call_sites: Vec<RustCallSite>,
+
     /// Spans of `pub struct` declarations that contain a raw pointer field
     /// (`*mut T` or `*const T`) without an accompanying `unsafe impl Send`
     /// declaration in the same file.
@@ -174,6 +196,29 @@ fn has_safety_comment(line: &str) -> bool {
     false
 }
 
+/// Bind-callee allowlist for `SEC013-bind-all-interfaces` (Rust).
+///
+/// These are the last segment names matched against the callee path.
+const RUST_BIND_CALLEE_NAMES: &[&str] = &[
+    "bind",
+    "bind_addr",
+    "new", // Hyper Server::new takes the address
+];
+
+/// Returns `true` when `raw` is a bind-all-interfaces address:
+/// - `"0.0.0.0"` or `"0.0.0.0:PORT"` (IPv4 any-address)
+/// - `"::"` or `"[::]:PORT"` or `":::PORT"` (IPv6 any-address)
+pub(crate) fn is_bind_all_address_rust(raw: &str) -> bool {
+    let host = if let Some(stripped) = raw.strip_prefix('[') {
+        stripped.split(']').next().unwrap_or(raw)
+    } else if raw == "::" || raw.starts_with(":::") {
+        "::"
+    } else {
+        raw.split(':').next().unwrap_or(raw)
+    };
+    host == "0.0.0.0" || host == "::"
+}
+
 /// Known parser/decoder function name fragments that trigger SOUND005.
 const PARSER_NAMES: &[&str] = &[
     "from_bytes",
@@ -217,6 +262,7 @@ struct Extractor<'src> {
     clone_in_iter_chains: Vec<Span>,
     empty_blocks: Vec<Span>,
     debug_calls: Vec<(Span, RustDebugKind)>,
+    bind_call_sites: Vec<RustCallSite>,
 
     source: &'src SourceFile,
     /// `true` while inside an `extern "…"` block.
@@ -241,6 +287,7 @@ impl<'src> Extractor<'src> {
             clone_in_iter_chains: Vec::new(),
             empty_blocks: Vec::new(),
             debug_calls: Vec::new(),
+            bind_call_sites: Vec::new(),
             source,
             in_foreign_mod: false,
             pending_pub_struct_raw_ptr: Vec::new(),
@@ -520,6 +567,37 @@ impl<'ast> Visit<'ast> for Extractor<'_> {
             let span = proc_span_to_byte_span(ep.path.span(), self.source);
             self.transmute_calls.push(span);
         }
+
+        // SEC013: detect bind-all-interfaces call sites.
+        if let syn::Expr::Path(ep) = &*node.func {
+            let last_seg = ep
+                .path
+                .segments
+                .last()
+                .map(|s| s.ident.to_string())
+                .unwrap_or_default();
+            if RUST_BIND_CALLEE_NAMES.contains(&last_seg.as_str()) {
+                // Extract the first argument string literal value, if any.
+                let first_arg_string_value = node.args.first().and_then(|arg| {
+                    if let syn::Expr::Lit(syn::ExprLit {
+                        lit: syn::Lit::Str(s),
+                        ..
+                    }) = arg
+                    {
+                        Some(s.value())
+                    } else {
+                        None
+                    }
+                });
+                let span = proc_span_to_byte_span(node.func.span(), self.source);
+                self.bind_call_sites.push(RustCallSite {
+                    callee_name: last_seg,
+                    first_arg_string_value,
+                    span,
+                });
+            }
+        }
+
         syn::visit::visit_expr_call(self, node);
     }
 
@@ -644,6 +722,7 @@ pub(crate) fn parse(source: Arc<SourceFile>) -> Result<ParsedFile, ParseError> {
             clone_in_iter_chains: extractor.clone_in_iter_chains,
             empty_blocks: extractor.empty_blocks,
             debug_calls: extractor.debug_calls,
+            bind_call_sites: extractor.bind_call_sites,
             pub_struct_with_raw_ptr,
         })
     };

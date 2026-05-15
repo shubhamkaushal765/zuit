@@ -4,6 +4,7 @@
 //! registered alongside the language frontend via [`crate::register`].
 
 pub mod active_debug_code;
+pub mod bind_all_interfaces;
 pub mod chain;
 pub mod empty_block;
 pub mod eval_sink;

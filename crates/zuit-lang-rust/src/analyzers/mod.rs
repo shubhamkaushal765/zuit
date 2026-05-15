@@ -14,6 +14,7 @@
 //!   `cargo geiger`, `cargo deny`).
 
 pub mod active_debug_code;
+pub mod bind_all_interfaces;
 pub mod chain;
 pub mod ci;
 pub mod eco;

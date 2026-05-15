@@ -577,6 +577,43 @@ fn python_empty_block_positive_fixture_has_maint013_finding() {
     );
 }
 
+// ── SEC013-bind-all-interfaces: Python positive fixture produces at least one finding ──
+
+#[test]
+fn python_bind_all_interfaces_positive_fixture_has_sec013_finding() {
+    let path = workspace_path("fixtures/python/bind_all_interfaces/positive.py");
+    let raw = zuit()
+        .args([
+            "analyze",
+            path.to_str().unwrap(),
+            "--format",
+            "json",
+            "--no-save",
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let json: serde_json::Value = serde_json::from_slice(&raw).expect("stdout must be valid JSON");
+    let findings = json["findings"].as_array().expect("findings must be array");
+
+    let has_sec013 = findings
+        .iter()
+        .any(|f| f["rule_id"].as_str() == Some("SEC013-bind-all-interfaces"));
+
+    assert!(
+        has_sec013,
+        "python/bind_all_interfaces/positive.py must produce at least one \
+         SEC013-bind-all-interfaces finding; rule_ids present: {:?}",
+        findings
+            .iter()
+            .filter_map(|f| f["rule_id"].as_str())
+            .collect::<Vec<_>>()
+    );
+}
+
 // ── MAINT014-commented-out-code: Python fixture produces at least one finding ─
 
 #[test]

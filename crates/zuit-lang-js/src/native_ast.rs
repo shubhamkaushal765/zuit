@@ -38,6 +38,8 @@ pub enum JsCallee {
 ///
 /// Only call sites whose callee is a bare identifier (or bare `new <Identifier>`)
 /// are recorded; member calls such as `obj.eval(...)` are not captured in v1.
+/// Member-expression callees (e.g. `app.listen(...)`) are captured in the
+/// [`crate::native_ast::JsAst::bind_call_sites`] field for SEC013.
 #[derive(Debug, Clone)]
 pub struct JsCallSite {
     /// The callee shape.
@@ -53,6 +55,14 @@ pub struct JsCallSite {
     /// directly. Not yet consumed by any v1 analyzer.
     #[allow(dead_code)]
     pub first_arg_span: Option<Span>,
+    /// The string value of the first argument, if it is a string literal (not a
+    /// template literal).
+    ///
+    /// Populated at parse time for `SEC013-bind-all-interfaces`. `None` when the
+    /// first argument is absent, non-string, or a template literal.
+    /// Not yet consumed by every v1 analyzer — suppress the `dead_code` lint.
+    #[allow(dead_code)]
+    pub first_arg_string_value: Option<String>,
 }
 
 /// The kind of DOM-based XSS sink that was found.
@@ -163,6 +173,25 @@ pub struct JsAst {
     /// `console.error`, `console.warn`, and `console.info` are intentionally
     /// **excluded** (legitimate in production error paths).
     pub debug_calls: Vec<(Span, JsDebugKind)>,
+
+    /// Server-bind call sites for `SEC013-bind-all-interfaces`.
+    ///
+    /// Each entry is `(callee_last_segment, first_arg_string_value, span)`.
+    /// Only records calls whose callee last segment is in the bind allowlist AND
+    /// whose first argument is a string literal. Member calls are included
+    /// (e.g. `app.listen(...)`, `server.listen(...)`).
+    pub bind_call_sites: Vec<JsBindCallSite>,
+}
+
+/// A server-bind call site extracted for `SEC013-bind-all-interfaces`.
+#[derive(Debug, Clone)]
+pub struct JsBindCallSite {
+    /// The last segment of the callee (e.g. `"listen"`, `"bind"`).
+    pub callee_name: String,
+    /// The string value of the first argument, if it is a plain string literal.
+    pub first_arg_string_value: Option<String>,
+    /// Full byte span of the call expression.
+    pub span: Span,
 }
 
 // JsAst contains only Vec<JsCallSite> and Vec<JsDomSink> where both hold plain

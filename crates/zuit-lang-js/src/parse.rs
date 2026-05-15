@@ -18,7 +18,7 @@ use oxc_span::SourceType;
 use zuit_core::{ByteOffset, LanguageId, ParseError, ParsedFile, SourceFile, Span};
 
 use crate::native_ast::{
-    DomSinkKind, JsAst, JsCallSite, JsCallee, JsDebugKind, JsDomSink, JsImport,
+    DomSinkKind, JsAst, JsBindCallSite, JsCallSite, JsCallee, JsDebugKind, JsDomSink, JsImport,
 };
 
 /// Parses `source` as JavaScript or TypeScript and returns a populated
@@ -93,6 +93,8 @@ struct WalkCtx {
     empty_blocks: Vec<Span>,
     /// Debug-code call sites for `MAINT011-active-debug-code`.
     debug_calls: Vec<(Span, JsDebugKind)>,
+    /// Bind call sites for `SEC013-bind-all-interfaces`.
+    bind_call_sites: Vec<JsBindCallSite>,
 }
 
 impl WalkCtx {
@@ -105,6 +107,7 @@ impl WalkCtx {
             at_top_level: true,
             empty_blocks: Vec::new(),
             debug_calls: Vec::new(),
+            bind_call_sites: Vec::new(),
         }
     }
 }
@@ -144,6 +147,7 @@ fn extract_call_sites(program: &Program<'_>) -> JsAst {
         top_level_calls: ctx.top_level_calls,
         empty_blocks: ctx.empty_blocks,
         debug_calls: ctx.debug_calls,
+        bind_call_sites: ctx.bind_call_sites,
     }
 }
 
@@ -180,6 +184,47 @@ fn dom_sink_kind_for_call(callee: &Expression<'_>) -> Option<DomSinkKind> {
                 });
             }
             None
+        }
+        _ => None,
+    }
+}
+
+/// Bind-callee allowlist for `SEC013-bind-all-interfaces` (JS/TS).
+///
+/// These are the last segment names checked against both bare calls and the
+/// method name of member-expression calls.
+const BIND_CALLEE_NAMES: &[&str] = &["listen", "bind"];
+
+/// Returns the string value of the first argument of a call if it is a plain
+/// string literal (not a template literal), for bind-all-interfaces detection.
+fn first_string_arg_value<'a>(args: &'a [Argument<'a>]) -> Option<&'a str> {
+    args.first().and_then(|a| {
+        if let Some(Expression::StringLiteral(s)) = a.as_expression() {
+            Some(s.value.as_str())
+        } else {
+            None
+        }
+    })
+}
+
+/// Returns `true` when the call's callee last segment is in the bind allowlist.
+fn is_bind_callee_member(callee: &Expression<'_>) -> Option<String> {
+    match callee {
+        Expression::StaticMemberExpression(m) => {
+            let name = m.property.name.as_str();
+            if BIND_CALLEE_NAMES.contains(&name) {
+                Some(name.to_string())
+            } else {
+                None
+            }
+        }
+        Expression::Identifier(id) => {
+            let name = id.name.as_str();
+            if BIND_CALLEE_NAMES.contains(&name) {
+                Some(name.to_string())
+            } else {
+                None
+            }
         }
         _ => None,
     }
@@ -443,11 +488,19 @@ fn walk_expr(expr: &Expression<'_>, out: &mut WalkCtx) {
                             use oxc_span::GetSpan;
                             oxc_span_to_core(e.span())
                         });
+                let first_arg_string_value = call.arguments.first().and_then(|a| {
+                    if let Some(Expression::StringLiteral(s)) = a.as_expression() {
+                        Some(s.value.to_string())
+                    } else {
+                        None
+                    }
+                });
                 let site = JsCallSite {
                     callee: JsCallee::Name(name.clone()),
                     span: oxc_span_to_core(call.span),
                     first_arg_is_string_literal: first_arg_is_string,
                     first_arg_span,
+                    first_arg_string_value,
                 };
                 // Detect top-level `require("module")` calls for PERF002.
                 if out.at_top_level
@@ -480,6 +533,16 @@ fn walk_expr(expr: &Expression<'_>, out: &mut WalkCtx) {
                 out.debug_calls
                     .push((oxc_span_to_core(call.span), debug_kind));
             }
+            // SEC013: detect bind-all-interfaces patterns.
+            if let Some(callee_name) = is_bind_callee_member(&call.callee) {
+                let raw_val = first_string_arg_value(&call.arguments);
+                let first_arg_string_value = raw_val.map(str::to_string);
+                out.bind_call_sites.push(JsBindCallSite {
+                    callee_name,
+                    first_arg_string_value,
+                    span: oxc_span_to_core(call.span),
+                });
+            }
             // Recurse into callee (handles `Function('x')()` — the inner
             // `Function('x')` is the callee of the outer call).
             walk_expr(&call.callee, out);
@@ -503,11 +566,19 @@ fn walk_expr(expr: &Expression<'_>, out: &mut WalkCtx) {
                         use oxc_span::GetSpan;
                         oxc_span_to_core(e.span())
                     });
+                let new_first_arg_string_value = new_expr.arguments.first().and_then(|a| {
+                    if let Some(Expression::StringLiteral(s)) = a.as_expression() {
+                        Some(s.value.to_string())
+                    } else {
+                        None
+                    }
+                });
                 out.call_sites.push(JsCallSite {
                     callee: JsCallee::New(name),
                     span: oxc_span_to_core(new_expr.span),
                     first_arg_is_string_literal: first_arg_is_string,
                     first_arg_span,
+                    first_arg_string_value: new_first_arg_string_value,
                 });
             }
             // Recurse into arguments.

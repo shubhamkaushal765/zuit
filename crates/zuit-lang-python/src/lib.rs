@@ -48,6 +48,9 @@ pub fn register(registry: &mut Registry) {
     registry.add_analyzer(Box::new(
         analyzers::active_debug_code::ActiveDebugCodeAnalyzer,
     ));
+    registry.add_analyzer(Box::new(
+        analyzers::bind_all_interfaces::BindAllInterfacesAnalyzer,
+    ));
 
     // PKG — Packaging & Distribution (project-level)
     registry.add_analyzer(Box::new(
