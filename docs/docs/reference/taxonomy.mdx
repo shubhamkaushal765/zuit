@@ -1,0 +1,72 @@
+---
+title: CWE / OWASP taxonomy
+sidebar_label: Taxonomy
+---
+
+import StatRow from '@site/src/components/scope/StatRow';
+import FilterableTable from '@site/src/components/scope/FilterableTable';
+import CategoryBadge from '@site/src/components/scope/CategoryBadge';
+import LangDots from '@site/src/components/scope/LangDots';
+import { TAXONOMY, TAXONOMY_STATS } from '@site/src/data/taxonomy';
+
+# Rule taxonomy (CWE / OWASP)
+
+Each rule carries a static CWE (and where applicable OWASP) mapping in its
+`RuleMeta`. Every emitted `crates/zuit-core/src/finding.rs`
+ships `cwe` and `owasp` arrays alongside its `references` field. The CLI
+`--cwe` / `--owasp` filters use these arrays for rule-pack selection (see
+`AGENTS.md` and `crates/zuit-cli/src/analyze.rs`).
+
+## Mapping
+
+<StatRow
+  ariaLabel="Rule taxonomy summary"
+  stats={[
+    { value: TAXONOMY_STATS.total,     label: 'Total rules',  accent: 'primary' },
+    { value: TAXONOMY_STATS.withCwe,   label: 'With CWE',     accent: 'info' },
+    { value: TAXONOMY_STATS.withOwasp, label: 'With OWASP',   accent: 'warning' },
+    { value: TAXONOMY_STATS.languages, label: 'Languages',    accent: 'success' },
+  ]}
+/>
+
+<FilterableTable
+  rows={TAXONOMY}
+  filterField="family"
+  filterOptions={[
+    { value: 'all',   label: 'All' },
+    { value: 'MAINT', label: 'Maintainability' },
+    { value: 'SEC',   label: 'Security' },
+    { value: 'CPLX',  label: 'Complexity' },
+    { value: 'DOC',   label: 'Documentation' },
+    { value: 'TEST',  label: 'Test smell' },
+    { value: 'PKG',   label: 'Packaging' },
+    { value: 'SOUND', label: 'Soundness' },
+    { value: 'OTHER', label: 'Other' },
+  ]}
+  columns={[
+    { key: 'id',    header: 'Rule ID', searchable: true,
+      render: r => <CategoryBadge label={r.id} monospace tone="neutral" /> },
+    { key: 'name',  header: 'Name' },
+    { key: 'cwe',   header: 'CWE',
+      render: r => r.cwe.length ? r.cwe.join(', ') : '—' },
+    { key: 'owasp', header: 'OWASP',
+      render: r => r.owasp.length ? r.owasp.join(', ') : '—' },
+    { key: 'langs', header: 'Languages',
+      render: r => <LangDots langs={r.langs} /> },
+  ]}
+  caption="CWE/OWASP mapping for every rule"
+  searchPlaceholder="Search by rule id..."
+  emptyMessage="No rules match this filter"
+/>
+
+:::note
+All other rule families (`SOUND001-002,004-006`, `PKG002-005`, `HEALTH`, `CHAIN`, `PERF`, `ECO`, `CI`) are operational/quality rules and do not carry CWE/OWASP tags.
+:::
+
+## Where these flow
+
+- **JSON output** — `cwe` / `owasp` arrays per finding (omitted when empty).
+- **SARIF 2.1.0** — emitted as result-level `taxa` references.
+- **Terminal / Markdown** — printed alongside the rule id when present.
+- **`zuit list analyzers`** — shown next to the rule's metadata.
+- **`zuit analyze --owasp <CAT>` / `--cwe <ID>`** — post-analysis allowlist filters; case-insensitive, repeatable, intersect when combined.
