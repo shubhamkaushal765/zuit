@@ -181,6 +181,39 @@ pub struct JsAst {
     /// whose first argument is a string literal. Member calls are included
     /// (e.g. `app.listen(...)`, `server.listen(...)`).
     pub bind_call_sites: Vec<JsBindCallSite>,
+
+    /// Assignment sites for `SEC012-hardcoded-security-constant`.
+    ///
+    /// Populated for variable declarations and assignment expressions whose LHS
+    /// is a bare identifier and whose RHS is a literal value.
+    pub assignments: Vec<JsAssignmentSite>,
+}
+
+/// A literal value extracted from an assignment/declaration RHS for SEC012.
+#[derive(Debug, Clone)]
+#[allow(dead_code)] // fields consumed by SEC012 analyzer
+pub enum JsLiteralValue {
+    /// A string literal value.
+    Str(String),
+    /// A numeric literal value (truncated to i64).
+    Int(i64),
+    /// Any other literal type (bool, null, regexp, template, etc.).
+    Other,
+}
+
+/// An assignment site extracted for `SEC012-hardcoded-security-constant`.
+///
+/// Populated for variable declarations (`const`, `let`, `var`) and assignment
+/// expressions whose LHS is a plain identifier matching a security keyword.
+#[derive(Debug, Clone)]
+#[allow(dead_code)] // fields consumed by SEC012 analyzer
+pub struct JsAssignmentSite {
+    /// The LHS identifier name (lowercased).
+    pub lhs_name: String,
+    /// The literal value of the RHS.
+    pub rhs_literal: JsLiteralValue,
+    /// Byte span of the assignment/declaration.
+    pub span: Span,
 }
 
 /// A server-bind call site extracted for `SEC013-bind-all-interfaces`.

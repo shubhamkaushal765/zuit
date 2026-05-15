@@ -33,6 +33,35 @@ pub(crate) struct UnsafeItem {
     pub(crate) label: &'static str,
 }
 
+/// A literal value extracted from an assignment RHS for SEC012.
+#[derive(Debug, Clone)]
+#[allow(dead_code)] // fields consumed by SEC012 analyzer once registered
+pub(crate) enum RustLiteralValue {
+    /// A string literal value.
+    Str(String),
+    /// A byte string literal value.
+    Bytes(Vec<u8>),
+    /// An integer literal value (truncated to i64).
+    Int(i64),
+    /// Any other literal type (bool, float, char, etc.).
+    Other,
+}
+
+/// An assignment site extracted for `SEC012-hardcoded-security-constant`.
+///
+/// Populated by [`Extractor`] for `let`/`=` assignments and `const`/`static`
+/// declarations whose LHS identifier name matches a security-keyword pattern.
+#[derive(Debug, Clone)]
+#[allow(dead_code)] // fields consumed by SEC012 analyzer
+pub(crate) struct RustAssignmentSite {
+    /// The LHS identifier name (lowercased).
+    pub(crate) lhs_name: String,
+    /// The literal value of the RHS.
+    pub(crate) rhs_literal: RustLiteralValue,
+    /// Byte span of the assignment/declaration.
+    pub(crate) span: Span,
+}
+
 /// A server-bind call site extracted for `SEC013-bind-all-interfaces`.
 ///
 /// Populated by [`Extractor`] for function calls whose path last segment is in
@@ -132,6 +161,13 @@ pub(crate) struct RustAst {
     /// segment is in the bind allowlist (e.g. `TcpListener::bind`,
     /// `HttpServer::bind`, `Server::bind`, etc.).
     pub(crate) bind_call_sites: Vec<RustCallSite>,
+
+    /// Assignment sites for `SEC012-hardcoded-security-constant`.
+    ///
+    /// Populated by [`Extractor`] for `let name = <literal>` bindings,
+    /// `name = <literal>` assignments, and `const`/`static` declarations
+    /// whose identifier name substring-matches a security keyword.
+    pub(crate) assignments: Vec<RustAssignmentSite>,
 
     /// Spans of `pub struct` declarations that contain a raw pointer field
     /// (`*mut T` or `*const T`) without an accompanying `unsafe impl Send`
@@ -239,6 +275,48 @@ fn is_parser_call(path: &syn::Path) -> bool {
     })
 }
 
+/// Extracts a [`RustLiteralValue`] from a `syn::Expr` if it is a plain literal.
+///
+/// Returns `None` for non-literal expressions (identifiers, calls, etc.).
+fn expr_to_rust_literal(expr: &syn::Expr) -> Option<RustLiteralValue> {
+    // Unwrap reference and group expressions.
+    let inner = match expr {
+        syn::Expr::Group(g) => &g.expr,
+        syn::Expr::Reference(r) => &r.expr,
+        other => other,
+    };
+    if let syn::Expr::Lit(el) = inner {
+        return match &el.lit {
+            syn::Lit::Str(s) => Some(RustLiteralValue::Str(s.value())),
+            syn::Lit::ByteStr(b) => Some(RustLiteralValue::Bytes(b.value())),
+            syn::Lit::Int(i) => {
+                let v = i.base10_parse::<i64>().unwrap_or(0);
+                Some(RustLiteralValue::Int(v))
+            }
+            syn::Lit::Bool(_) | syn::Lit::Float(_) | syn::Lit::Char(_) | syn::Lit::Byte(_) => {
+                Some(RustLiteralValue::Other)
+            }
+            _ => Some(RustLiteralValue::Other),
+        };
+    }
+    None
+}
+
+/// Extracts the identifier name from a `let` pattern if it is a simple
+/// `Pat::Ident` (not a destructure or wildcard).
+fn local_pat_ident_name(pat: &syn::Pat) -> Option<String> {
+    if let syn::Pat::Ident(pi) = pat {
+        return Some(pi.ident.to_string());
+    }
+    // Also handle `Pat::Type` wrapping a `Pat::Ident` (annotated let).
+    if let syn::Pat::Type(pt) = pat
+        && let syn::Pat::Ident(pi) = &*pt.pat
+    {
+        return Some(pi.ident.to_string());
+    }
+    None
+}
+
 /// Returns `true` if the last path segment is `transmute`.
 fn is_transmute_path(path: &syn::Path) -> bool {
     path.segments
@@ -263,6 +341,7 @@ struct Extractor<'src> {
     empty_blocks: Vec<Span>,
     debug_calls: Vec<(Span, RustDebugKind)>,
     bind_call_sites: Vec<RustCallSite>,
+    assignments: Vec<RustAssignmentSite>,
 
     source: &'src SourceFile,
     /// `true` while inside an `extern "…"` block.
@@ -288,6 +367,7 @@ impl<'src> Extractor<'src> {
             empty_blocks: Vec::new(),
             debug_calls: Vec::new(),
             bind_call_sites: Vec::new(),
+            assignments: Vec::new(),
             source,
             in_foreign_mod: false,
             pending_pub_struct_raw_ptr: Vec::new(),
@@ -667,6 +747,67 @@ impl<'ast> Visit<'ast> for Extractor<'_> {
         syn::visit::visit_macro(self, node);
     }
 
+    // SEC012: detect hardcoded security constants in `let`, assignment, `const`, `static`.
+
+    fn visit_local(&mut self, node: &'ast syn::Local) {
+        // `let name = <literal>` — LocalInit with a simple Ident pattern.
+        if let Some(init) = &node.init
+            && let Some(lit) = expr_to_rust_literal(&init.expr)
+            && let Some(n) = local_pat_ident_name(&node.pat)
+        {
+            let span = proc_span_to_byte_span(node.let_token.span, self.source);
+            self.assignments.push(RustAssignmentSite {
+                lhs_name: n.to_lowercase(),
+                rhs_literal: lit,
+                span,
+            });
+        }
+        syn::visit::visit_local(self, node);
+    }
+
+    fn visit_expr_assign(&mut self, node: &'ast syn::ExprAssign) {
+        // `name = <literal>` — only bare identifier LHS.
+        if let syn::Expr::Path(ep) = &*node.left
+            && let Some(seg) = ep.path.segments.last()
+            && let Some(lit) = expr_to_rust_literal(&node.right)
+        {
+            let name = seg.ident.to_string();
+            let span = proc_span_to_byte_span(node.left.span(), self.source);
+            self.assignments.push(RustAssignmentSite {
+                lhs_name: name.to_lowercase(),
+                rhs_literal: lit,
+                span,
+            });
+        }
+        syn::visit::visit_expr_assign(self, node);
+    }
+
+    fn visit_item_const(&mut self, node: &'ast syn::ItemConst) {
+        let name = node.ident.to_string();
+        if let Some(lit) = expr_to_rust_literal(&node.expr) {
+            let span = proc_span_to_byte_span(node.const_token.span, self.source);
+            self.assignments.push(RustAssignmentSite {
+                lhs_name: name.to_lowercase(),
+                rhs_literal: lit,
+                span,
+            });
+        }
+        syn::visit::visit_item_const(self, node);
+    }
+
+    fn visit_item_static(&mut self, node: &'ast syn::ItemStatic) {
+        let name = node.ident.to_string();
+        if let Some(lit) = expr_to_rust_literal(&node.expr) {
+            let span = proc_span_to_byte_span(node.static_token.span, self.source);
+            self.assignments.push(RustAssignmentSite {
+                lhs_name: name.to_lowercase(),
+                rhs_literal: lit,
+                span,
+            });
+        }
+        syn::visit::visit_item_static(self, node);
+    }
+
     fn visit_item_struct(&mut self, node: &'ast syn::ItemStruct) {
         // ECO003: pub struct with raw pointer field.
         if Self::is_pub(&node.vis) && Self::struct_has_raw_ptr_field(&node.fields) {
@@ -723,6 +864,7 @@ pub(crate) fn parse(source: Arc<SourceFile>) -> Result<ParsedFile, ParseError> {
             empty_blocks: extractor.empty_blocks,
             debug_calls: extractor.debug_calls,
             bind_call_sites: extractor.bind_call_sites,
+            assignments: extractor.assignments,
             pub_struct_with_raw_ptr,
         })
     };

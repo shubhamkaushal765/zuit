@@ -18,7 +18,8 @@ use oxc_span::SourceType;
 use zuit_core::{ByteOffset, LanguageId, ParseError, ParsedFile, SourceFile, Span};
 
 use crate::native_ast::{
-    DomSinkKind, JsAst, JsBindCallSite, JsCallSite, JsCallee, JsDebugKind, JsDomSink, JsImport,
+    DomSinkKind, JsAssignmentSite, JsAst, JsBindCallSite, JsCallSite, JsCallee, JsDebugKind,
+    JsDomSink, JsImport, JsLiteralValue,
 };
 
 /// Parses `source` as JavaScript or TypeScript and returns a populated
@@ -95,6 +96,8 @@ struct WalkCtx {
     debug_calls: Vec<(Span, JsDebugKind)>,
     /// Bind call sites for `SEC013-bind-all-interfaces`.
     bind_call_sites: Vec<JsBindCallSite>,
+    /// Assignment sites for `SEC012-hardcoded-security-constant`.
+    assignments: Vec<JsAssignmentSite>,
 }
 
 impl WalkCtx {
@@ -108,6 +111,7 @@ impl WalkCtx {
             empty_blocks: Vec::new(),
             debug_calls: Vec::new(),
             bind_call_sites: Vec::new(),
+            assignments: Vec::new(),
         }
     }
 }
@@ -148,6 +152,7 @@ fn extract_call_sites(program: &Program<'_>) -> JsAst {
         empty_blocks: ctx.empty_blocks,
         debug_calls: ctx.debug_calls,
         bind_call_sites: ctx.bind_call_sites,
+        assignments: ctx.assignments,
     }
 }
 
@@ -194,6 +199,30 @@ fn dom_sink_kind_for_call(callee: &Expression<'_>) -> Option<DomSinkKind> {
 /// These are the last segment names checked against both bare calls and the
 /// method name of member-expression calls.
 const BIND_CALLEE_NAMES: &[&str] = &["listen", "bind"];
+
+/// Converts an oxc `Expression` to a [`JsLiteralValue`] if it is a plain literal.
+///
+/// Returns `None` for non-literal expressions (identifiers, calls, etc.).
+fn expr_to_js_literal(expr: &Expression<'_>) -> Option<JsLiteralValue> {
+    match expr {
+        Expression::StringLiteral(s) => Some(JsLiteralValue::Str(s.value.to_string())),
+        Expression::NumericLiteral(n) => {
+            // Safe truncation: we only need integer-range values for SEC012.
+            #[allow(clippy::cast_possible_truncation)]
+            Some(JsLiteralValue::Int(n.value as i64))
+        }
+        Expression::BooleanLiteral(_)
+        | Expression::NullLiteral(_)
+        | Expression::RegExpLiteral(_) => Some(JsLiteralValue::Other),
+        // Unwrap parenthesised / TS wrapper expressions.
+        Expression::ParenthesizedExpression(p) => expr_to_js_literal(&p.expression),
+        Expression::TSAsExpression(e) => expr_to_js_literal(&e.expression),
+        Expression::TSSatisfiesExpression(e) => expr_to_js_literal(&e.expression),
+        Expression::TSNonNullExpression(e) => expr_to_js_literal(&e.expression),
+        Expression::TSTypeAssertion(e) => expr_to_js_literal(&e.expression),
+        _ => None,
+    }
+}
 
 /// Returns the string value of the first argument of a call if it is a plain
 /// string literal (not a template literal), for bind-all-interfaces detection.
@@ -286,6 +315,16 @@ fn walk_stmt(stmt: &Statement<'_>, out: &mut WalkCtx) {
         Statement::VariableDeclaration(v) => {
             for d in &v.declarations {
                 if let Some(init) = &d.init {
+                    // SEC012: capture `const/let/var name = <literal>`.
+                    if let oxc_ast::ast::BindingPattern::BindingIdentifier(id) = &d.id
+                        && let Some(lit) = expr_to_js_literal(init)
+                    {
+                        out.assignments.push(JsAssignmentSite {
+                            lhs_name: id.name.to_lowercase(),
+                            rhs_literal: lit,
+                            span: oxc_span_to_core(v.span),
+                        });
+                    }
                     walk_expr(init, out);
                 }
             }
@@ -646,6 +685,16 @@ fn walk_expr(expr: &Expression<'_>, out: &mut WalkCtx) {
             if let Some(kind) = dom_sink_kind_for_assignment_target(&a.left) {
                 out.dom_sinks.push(JsDomSink {
                     kind,
+                    span: oxc_span_to_core(a.span),
+                });
+            }
+            // SEC012: capture `name = <literal>` assignment expressions.
+            if let oxc_ast::ast::AssignmentTarget::AssignmentTargetIdentifier(id) = &a.left
+                && let Some(lit) = expr_to_js_literal(&a.right)
+            {
+                out.assignments.push(JsAssignmentSite {
+                    lhs_name: id.name.to_lowercase(),
+                    rhs_literal: lit,
                     span: oxc_span_to_core(a.span),
                 });
             }

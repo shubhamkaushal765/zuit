@@ -650,3 +650,40 @@ fn python_commented_code_positive_fixture_has_maint014_finding() {
             .collect::<Vec<_>>()
     );
 }
+
+// ── SEC012-hardcoded-security-constant: Python positive fixture produces at least one finding ──
+
+#[test]
+fn python_hardcoded_security_constant_positive_fixture_has_sec012_finding() {
+    let path = workspace_path("fixtures/python/hardcoded_security_constant/positive.py");
+    let raw = zuit()
+        .args([
+            "analyze",
+            path.to_str().unwrap(),
+            "--format",
+            "json",
+            "--no-save",
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let json: serde_json::Value = serde_json::from_slice(&raw).expect("stdout must be valid JSON");
+    let findings = json["findings"].as_array().expect("findings must be array");
+
+    let has_sec012 = findings
+        .iter()
+        .any(|f| f["rule_id"].as_str() == Some("SEC012-hardcoded-security-constant"));
+
+    assert!(
+        has_sec012,
+        "python/hardcoded_security_constant/positive.py must produce at least one \
+         SEC012-hardcoded-security-constant finding; rule_ids present: {:?}",
+        findings
+            .iter()
+            .filter_map(|f| f["rule_id"].as_str())
+            .collect::<Vec<_>>()
+    );
+}

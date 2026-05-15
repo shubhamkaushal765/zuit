@@ -92,6 +92,7 @@ const sidebars: SidebarsConfig = {
             'rules/SEC005-insecure-deser',
             'rules/SEC006-sql-injection',
             'rules/SEC007-path-traversal',
+            'rules/SEC012-hardcoded-security-constant',
             'rules/SEC013-bind-all-interfaces',
             'rules/SEC101-rust-unsafe',
           ],
