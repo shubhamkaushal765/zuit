@@ -254,6 +254,7 @@ fn dispatch(
             ),
             "uplot.min.css" => (200, crate::assets::UPLOT_CSS.to_vec(), "text/css"),
             "fonts.css" => (200, crate::assets::FONTS_CSS.to_vec(), "text/css"),
+            "logo.svg" => (200, crate::assets::LOGO_SVG.to_vec(), "image/svg+xml"),
             _ => json_err(404, "asset not found"),
         },
         ("GET", ["assets", "fonts", name]) => match *name {
@@ -1505,6 +1506,32 @@ mod tests {
         let (status, _body, _ct) =
             handle_for_test_with_ct(&store, "GET", "/assets/fonts/nope.woff2", "x");
         assert_eq!(status, 404);
+    }
+
+    #[test]
+    fn assets_logo_svg_served() {
+        let (_tmp, store) = fixture_store();
+        let (status, body, ct) = handle_for_test_with_ct(&store, "GET", "/assets/logo.svg", "x");
+        assert_eq!(status, 200);
+        assert_eq!(ct, "image/svg+xml");
+        assert!(body.starts_with(b"<"), "body should start with <");
+    }
+
+    #[test]
+    fn assets_index_html_has_favicon_link() {
+        let (_tmp, store) = fixture_store();
+        let (status, body, _ct) = handle_for_test_with_ct(&store, "GET", "/", "x");
+        assert_eq!(status, 200);
+        assert!(
+            body.windows(b"rel=\"icon\"".len())
+                .any(|w| w == b"rel=\"icon\""),
+            "body should contain rel=\"icon\""
+        );
+        assert!(
+            body.windows(b"/assets/logo.svg".len())
+                .any(|w| w == b"/assets/logo.svg"),
+            "body should contain /assets/logo.svg"
+        );
     }
 
     // ── SEC-D: is_allowed_host unit tests ────────────────────────────────────

@@ -12,6 +12,8 @@ pub const UPLOT_JS: &[u8] = include_bytes!("../assets/uplot.js");
 pub const UPLOT_CSS: &[u8] = include_bytes!("../assets/uplot.min.css");
 /// `fonts.css`.
 pub const FONTS_CSS: &[u8] = include_bytes!("../assets/fonts.css");
+/// `logo.svg`.
+pub const LOGO_SVG: &[u8] = include_bytes!("../assets/logo.svg");
 /// Inter 400.
 pub const INTER_400: &[u8] = include_bytes!("../assets/fonts/inter-400.woff2");
 /// Inter 500.
