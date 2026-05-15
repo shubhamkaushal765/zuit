@@ -21,7 +21,7 @@ exclude = ["bindings/python", "bindings/node"]
 edition = "2024"
 rust-version = "1.93"
 # >>> zuit-sync: managed (do not edit) >>>
-version = "0.1.3"
+version = "0.1.4"
 description = "Multi-language static analysis CLI emitting structured findings on multiple quality dimensions."
 license = "MIT"
 repository = "https://github.com/shubhamkaushal765/zuit"
