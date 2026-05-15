@@ -96,6 +96,81 @@
 .statCard[data-accent="primary"]  .statValue { color: var(--cl-accent-primary); }
 /* neutral: inherits .statValue default */
 
+/* FilterableTable */
+
+.tableWrap { width: 100%; margin: 0.5rem 0 1.5rem; }
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.pill {
+  font: inherit;
+  padding: 5px 14px;
+  border-radius: 20px;
+  border: 0.5px solid var(--cl-border-muted);
+  font-size: 12px;
+  cursor: pointer;
+  background: transparent;
+  color: var(--cl-text-muted);
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.pill:hover { color: var(--cl-text-primary); }
+
+.pill[data-active="true"] {
+  background: var(--cl-surface-elevated, var(--cl-surface-card));
+  color: var(--cl-text-primary);
+  border-color: var(--cl-border-default, var(--cl-border-muted));
+}
+
+.searchInput {
+  font: inherit;
+  font-size: 12px;
+  padding: 5px 10px;
+  border-radius: 6px;
+  border: 0.5px solid var(--cl-border-muted);
+  background: var(--cl-surface-card);
+  color: var(--cl-text-primary);
+  min-width: 180px;
+}
+
+.scopeTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.scopeTable th {
+  font-weight: 500;
+  font-size: 11px;
+  text-align: left;
+  padding: 6px 10px;
+  border-bottom: 0.5px solid var(--cl-border-muted);
+  color: var(--cl-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.scopeTable td {
+  padding: 7px 10px;
+  border-bottom: 0.5px solid var(--cl-border-muted);
+  vertical-align: middle;
+  color: var(--cl-text-primary);
+}
+
+.scopeTable tr:last-child td { border-bottom: none; }
+
+.emptyCell {
+  text-align: center;
+  color: var(--cl-text-muted);
+  padding: 1.25rem 1rem;
+}
+
 /* LangDots */
 
 .langDots {
