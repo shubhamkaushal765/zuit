@@ -81,6 +81,9 @@ pub fn register(registry: &mut Registry) {
     // SEC family
     registry.add_analyzer(Box::new(analyzers::unsafe_block::UnsafeBlockAnalyzer));
 
+    // MAINT family
+    registry.add_analyzer(Box::new(analyzers::empty_block::EmptyBlockAnalyzer));
+
     // SOUND family
     registry.add_analyzer(Box::new(
         analyzers::sound::Sound001UnsafeBlockMissingSafetyComment,
@@ -209,8 +212,8 @@ mod tests {
         let mut registry = Registry::new();
         register(&mut registry);
         assert_eq!(registry.language_count(), 1);
-        // 1 (SEC101) + 6 SOUND + 10 PKG + 5 HEALTH + 4 CHAIN
-        // + 3 PERF + 4 ECO + 5 CI + 4 external = 42 total.
-        assert_eq!(registry.analyzer_count(), 42);
+        // 1 (SEC101) + 1 (MAINT013) + 6 SOUND + 10 PKG + 5 HEALTH + 4 CHAIN
+        // + 3 PERF + 4 ECO + 5 CI + 4 external = 43 total.
+        assert_eq!(registry.analyzer_count(), 43);
     }
 }

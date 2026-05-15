@@ -4,6 +4,7 @@
 //! registered alongside the language frontend via [`crate::register`].
 
 pub mod chain;
+pub mod empty_block;
 pub mod eval_sink;
 pub mod external;
 pub mod health;

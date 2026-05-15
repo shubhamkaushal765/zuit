@@ -87,6 +87,8 @@ struct WalkCtx {
     /// any function or class body). Used to distinguish top-level calls from
     /// nested calls for `PERF003`.
     at_top_level: bool,
+    /// Byte spans of empty blocks for `MAINT013-empty-block`.
+    empty_blocks: Vec<Span>,
 }
 
 impl WalkCtx {
@@ -97,6 +99,7 @@ impl WalkCtx {
             imports: Vec::new(),
             top_level_calls: Vec::new(),
             at_top_level: true,
+            empty_blocks: Vec::new(),
         }
     }
 }
@@ -134,6 +137,7 @@ fn extract_call_sites(program: &Program<'_>) -> JsAst {
         dom_sinks: ctx.dom_sinks,
         imports: ctx.imports,
         top_level_calls: ctx.top_level_calls,
+        empty_blocks: ctx.empty_blocks,
     }
 }
 
@@ -225,6 +229,12 @@ fn walk_stmt(stmt: &Statement<'_>, out: &mut WalkCtx) {
             }
         }
         Statement::IfStatement(s) => {
+            // MAINT013: flag empty consequent block.
+            if let Statement::BlockStatement(blk) = &s.consequent
+                && blk.body.is_empty()
+            {
+                out.empty_blocks.push(oxc_span_to_core(s.span));
+            }
             walk_expr(&s.test, out);
             walk_stmt(&s.consequent, out);
             if let Some(alt) = &s.alternate {
@@ -232,6 +242,12 @@ fn walk_stmt(stmt: &Statement<'_>, out: &mut WalkCtx) {
             }
         }
         Statement::WhileStatement(s) => {
+            // MAINT013: flag empty while body.
+            if let Statement::BlockStatement(blk) = &s.body
+                && blk.body.is_empty()
+            {
+                out.empty_blocks.push(oxc_span_to_core(s.span));
+            }
             walk_expr(&s.test, out);
             walk_stmt(&s.body, out);
         }
@@ -240,6 +256,12 @@ fn walk_stmt(stmt: &Statement<'_>, out: &mut WalkCtx) {
             walk_stmt(&s.body, out);
         }
         Statement::ForStatement(s) => {
+            // MAINT013: flag empty for body.
+            if let Statement::BlockStatement(blk) = &s.body
+                && blk.body.is_empty()
+            {
+                out.empty_blocks.push(oxc_span_to_core(s.span));
+            }
             if let Some(init) = &s.init {
                 if let oxc_ast::ast::ForStatementInit::VariableDeclaration(v) = init {
                     for d in &v.declarations {
@@ -277,6 +299,20 @@ fn walk_stmt(stmt: &Statement<'_>, out: &mut WalkCtx) {
                 walk_stmt(st, out);
             }
             if let Some(handler) = &s.handler {
+                // MAINT013: flag empty catch body, UNLESS the catch parameter
+                // is absent or named `_` (intentional swallow idiom).
+                // Intentional swallow: no param at all, or param named `_`.
+                let is_intentional_swallow = match &handler.param {
+                    None => true, // `catch {}` — intentional
+                    Some(p) => matches!(
+                        &p.pattern,
+                        oxc_ast::ast::BindingPattern::BindingIdentifier(id)
+                            if id.name.as_str() == "_"
+                    ),
+                };
+                if handler.body.body.is_empty() && !is_intentional_swallow {
+                    out.empty_blocks.push(oxc_span_to_core(handler.span));
+                }
                 for st in &handler.body.body {
                     walk_stmt(st, out);
                 }

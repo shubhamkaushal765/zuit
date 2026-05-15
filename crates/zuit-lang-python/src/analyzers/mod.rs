@@ -10,6 +10,7 @@
 
 pub mod api;
 pub mod chain;
+pub mod empty_block;
 pub mod eval_sink;
 pub mod external;
 pub mod health;

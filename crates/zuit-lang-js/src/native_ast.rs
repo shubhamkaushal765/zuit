@@ -127,6 +127,14 @@ pub struct JsAst {
     /// initialisation code such as `console.log("loaded")` at the top of a
     /// file.
     pub top_level_calls: Vec<JsCallSite>,
+    /// Byte spans of empty `BlockStatement` bodies reached from `IfStatement`,
+    /// `ForStatement`, `WhileStatement`, or `CatchClause`.
+    ///
+    /// Used by `MAINT013-empty-block`.
+    ///
+    /// Empty `catch` clauses whose parameter is absent or named `_` are
+    /// intentional swallow idioms and are **excluded**.
+    pub empty_blocks: Vec<Span>,
 }
 
 // JsAst contains only Vec<JsCallSite> and Vec<JsDomSink> where both hold plain

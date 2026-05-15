@@ -9,12 +9,14 @@
 //! - [`perf`]: `PERF001`–`PERF003` — performance heuristic rules.
 //! - [`eco`]: `ECO001`–`ECO004` — ecosystem compatibility rules.
 //! - [`ci`]: `CI001`–`CI005` — CI/CD & release hygiene rules.
+//! - [`empty_block`]: `MAINT013-empty-block` — flags empty `if`/`for`/`while` blocks.
 //! - [`external`]: external-tool adapters (`cargo audit`, `cargo clippy`,
 //!   `cargo geiger`, `cargo deny`).
 
 pub mod chain;
 pub mod ci;
 pub mod eco;
+pub mod empty_block;
 pub mod external;
 pub mod health;
 pub mod perf;

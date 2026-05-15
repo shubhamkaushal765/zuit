@@ -95,6 +95,7 @@ pub(crate) fn try_js_ast(parsed: &ParsedFile) -> Option<&JsAst> {
 pub fn register(registry: &mut Registry) {
     registry.add_language(Box::new(JsLanguage));
     registry.add_analyzer(Box::new(analyzers::eval_sink::JsEvalSinkAnalyzer));
+    registry.add_analyzer(Box::new(analyzers::empty_block::JsEmptyBlockAnalyzer));
     registry.add_analyzer(Box::new(analyzers::pkg::Pkg001InstallScriptAnalyzer));
     registry.add_analyzer(Box::new(analyzers::pkg::Pkg002MissingTypesAnalyzer));
     registry.add_analyzer(Box::new(analyzers::pkg::Pkg003DualPackageHazardAnalyzer));
@@ -175,7 +176,7 @@ mod tests {
     fn register_adds_analyzer() {
         let mut registry = Registry::new();
         register(&mut registry);
-        assert_eq!(registry.analyzer_count(), 22);
+        assert_eq!(registry.analyzer_count(), 23);
     }
 
     #[test]

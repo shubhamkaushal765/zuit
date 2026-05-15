@@ -44,6 +44,7 @@ pub fn register(registry: &mut Registry) {
 
     // File-level analyzers
     registry.add_analyzer(Box::new(analyzers::eval_sink::EvalSinkAnalyzer));
+    registry.add_analyzer(Box::new(analyzers::empty_block::EmptyBlockAnalyzer));
 
     // PKG — Packaging & Distribution (project-level)
     registry.add_analyzer(Box::new(

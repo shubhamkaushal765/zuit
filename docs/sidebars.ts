@@ -200,6 +200,7 @@ const sidebars: SidebarsConfig = {
           label: 'Maintainability (extra)',
           items: [
             'rules/MAINT008-large-impl-block',
+            'rules/MAINT013-empty-block',
           ],
         },
         {

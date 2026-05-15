@@ -79,6 +79,15 @@ pub(crate) struct RustAst {
     /// are acceptable for this performance hint.
     pub(crate) clone_in_iter_chains: Vec<Span>,
 
+    /// Spans of empty blocks reached from `if`/`for`/`while` expressions.
+    ///
+    /// Populated by [`Extractor`] when a `syn::Block` that is the body of an
+    /// `ExprIf`, `ExprForLoop`, or `ExprWhile` has zero statements.
+    ///
+    /// Empty `ExprLoop` is intentionally excluded (tracked by MAINT010).
+    /// Empty function bodies are intentionally excluded (often intentional stubs).
+    pub(crate) empty_blocks: Vec<Span>,
+
     /// Spans of `pub struct` declarations that contain a raw pointer field
     /// (`*mut T` or `*const T`) without an accompanying `unsafe impl Send`
     /// declaration in the same file.
@@ -183,6 +192,7 @@ struct Extractor<'src> {
     unsafe_with_parser_calls: Vec<Span>,
     extern_unsafe_fns_no_doc: Vec<Span>,
     clone_in_iter_chains: Vec<Span>,
+    empty_blocks: Vec<Span>,
 
     source: &'src SourceFile,
     /// `true` while inside an `extern "…"` block.
@@ -205,6 +215,7 @@ impl<'src> Extractor<'src> {
             unsafe_with_parser_calls: Vec::new(),
             extern_unsafe_fns_no_doc: Vec::new(),
             clone_in_iter_chains: Vec::new(),
+            empty_blocks: Vec::new(),
             source,
             in_foreign_mod: false,
             pending_pub_struct_raw_ptr: Vec::new(),
@@ -504,6 +515,34 @@ impl<'ast> Visit<'ast> for Extractor<'_> {
         syn::visit::visit_block(self, node);
     }
 
+    // MAINT013: empty blocks in if/for/while expressions.
+    // ExprLoop is intentionally excluded (MAINT010 handles it).
+    // Function bodies are excluded (often intentional stubs).
+
+    fn visit_expr_if(&mut self, node: &'ast syn::ExprIf) {
+        if node.then_branch.stmts.is_empty() {
+            let span = proc_span_to_byte_span(node.if_token.span, self.source);
+            self.empty_blocks.push(span);
+        }
+        syn::visit::visit_expr_if(self, node);
+    }
+
+    fn visit_expr_for_loop(&mut self, node: &'ast syn::ExprForLoop) {
+        if node.body.stmts.is_empty() {
+            let span = proc_span_to_byte_span(node.for_token.span, self.source);
+            self.empty_blocks.push(span);
+        }
+        syn::visit::visit_expr_for_loop(self, node);
+    }
+
+    fn visit_expr_while(&mut self, node: &'ast syn::ExprWhile) {
+        if node.body.stmts.is_empty() {
+            let span = proc_span_to_byte_span(node.while_token.span, self.source);
+            self.empty_blocks.push(span);
+        }
+        syn::visit::visit_expr_while(self, node);
+    }
+
     fn visit_item_struct(&mut self, node: &'ast syn::ItemStruct) {
         // ECO003: pub struct with raw pointer field.
         if Self::is_pub(&node.vis) && Self::struct_has_raw_ptr_field(&node.fields) {
@@ -557,6 +596,7 @@ pub(crate) fn parse(source: Arc<SourceFile>) -> Result<ParsedFile, ParseError> {
             unsafe_with_parser_calls: extractor.unsafe_with_parser_calls,
             extern_unsafe_fns_no_doc: extractor.extern_unsafe_fns_no_doc,
             clone_in_iter_chains: extractor.clone_in_iter_chains,
+            empty_blocks: extractor.empty_blocks,
             pub_struct_with_raw_ptr,
         })
     };
