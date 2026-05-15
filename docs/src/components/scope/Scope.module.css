@@ -95,3 +95,47 @@
 .statCard[data-accent="warning"]  .statValue { color: var(--cl-state-caution-text); }
 .statCard[data-accent="primary"]  .statValue { color: var(--cl-accent-primary); }
 /* neutral: inherits .statValue default */
+
+/* LangDots */
+
+.langDots {
+  display: inline-flex;
+  gap: 3px;
+  align-items: center;
+}
+
+.dot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 3px;
+  font-size: 9px;
+  font-weight: 600;
+  font-family: var(--ifm-font-family-monospace, ui-monospace, SFMono-Regular, Menlo, monospace);
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.dot[data-size="sm"] { width: 16px; height: 16px; }
+.dot[data-size="md"] { width: 20px; height: 20px; font-size: 10px; }
+
+.dot[data-dim="true"] { opacity: 0.22; }
+
+/* Rust → caution (amber). Python → info (blue). JS → tip (green/yellow-ish).
+   Tokens chosen for conceptual match without violating the "no raw hex" rule
+   in custom.css. */
+
+.dot-rs {
+  background: var(--cl-state-caution-bg);
+  color: var(--cl-state-caution-text);
+}
+
+.dot-py {
+  background: var(--cl-state-info-bg);
+  color: var(--cl-state-info-text);
+}
+
+.dot-js {
+  background: var(--cl-state-tip-bg);
+  color: var(--cl-state-tip-text);
+}
