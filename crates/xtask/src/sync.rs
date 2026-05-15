@@ -186,6 +186,13 @@ zuit = "zuit._cli:main"
 module-name = "zuit"
 python-source = "python"
 features = ["pyo3/extension-module"]
+# Explicitly bundle the precompiled CLI binary that the build-wheels CI job
+# stages into python/zuit/ before invoking maturin. Maturin only auto-includes
+# .py files from python-source; arbitrary binaries require an explicit entry.
+include = [
+  "python/zuit/zuit",
+  "python/zuit/zuit.exe",
+]
 "#,
         name = meta.name,
         version = meta.version,
@@ -522,6 +529,8 @@ name = "zuit"
         assert!(got.contains("https://github.com/example/zuit"));
         // Module name.
         assert!(got.contains("module-name = \"zuit\""));
+        // CLI binary include entries for wheel bundling.
+        assert!(got.contains("python/zuit/zuit"));
         // project.scripts section for pip PATH wiring.
         assert!(got.contains("[project.scripts]"));
         assert!(got.contains("zuit = \"zuit._cli:main\""));

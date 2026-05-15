@@ -244,5 +244,106 @@ class TestWheelArtifactNames(unittest.TestCase):
                     )
 
 
+class TestBuildWheelsBundlesCliBinary(unittest.TestCase):
+    """Tests asserting the build-wheels job stages the native CLI binary for maturin."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.data = _load_workflow()
+        cls.jobs = cls.data.get("jobs", {})
+        cls.job = cls.jobs.get("build-wheels", {})
+        cls.steps = cls.job.get("steps", []) or []
+
+    def _maturin_step_index(self):
+        for idx, step in enumerate(self.steps):
+            if step and step.get("uses", "").startswith("PyO3/maturin-action@"):
+                return idx
+        return None
+
+    def test_build_wheels_builds_cli_binary_before_maturin(self):
+        """build-wheels must run 'cargo build --release -p zuit' before the maturin step.
+
+        The native CLI binary must be compiled in the same job so it can be
+        staged into bindings/python/python/zuit/ before maturin bundles the
+        wheel — no cross-job artifact wiring required.
+        """
+        cargo_build_idx = None
+        for idx, step in enumerate(self.steps):
+            if not step:
+                continue
+            run_cmd = step.get("run", "") or ""
+            if "cargo build" in run_cmd and "--release" in run_cmd and "-p zuit" in run_cmd:
+                cargo_build_idx = idx
+                break
+
+        self.assertIsNotNone(
+            cargo_build_idx,
+            "build-wheels must contain a step with 'cargo build --release -p zuit'",
+        )
+
+        maturin_idx = self._maturin_step_index()
+        self.assertIsNotNone(maturin_idx, "build-wheels must contain a PyO3/maturin-action@ step")
+
+        self.assertLess(
+            cargo_build_idx,
+            maturin_idx,
+            "The 'cargo build --release -p zuit' step must appear before the maturin-action step",
+        )
+
+    def test_build_wheels_stages_cli_binary_for_maturin(self):
+        """build-wheels must copy the compiled binary into bindings/python/python/zuit/.
+
+        The staging step places the binary next to _cli.py so maturin
+        picks it up as part of the python-source tree and bundles it in
+        the wheel.
+        """
+        staging_idx = None
+        for idx, step in enumerate(self.steps):
+            if not step:
+                continue
+            run_cmd = step.get("run", "") or ""
+            if "bindings/python/python/zuit" in run_cmd:
+                staging_idx = idx
+                break
+
+        self.assertIsNotNone(
+            staging_idx,
+            "build-wheels must contain a step whose 'run' block references "
+            "'bindings/python/python/zuit' (the staging destination for the CLI binary)",
+        )
+
+        maturin_idx = self._maturin_step_index()
+        self.assertIsNotNone(maturin_idx, "build-wheels must contain a PyO3/maturin-action@ step")
+
+        self.assertLess(
+            staging_idx,
+            maturin_idx,
+            "The binary-staging step must appear before the maturin-action step",
+        )
+
+    def test_pyproject_toml_includes_cli_binary(self):
+        """bindings/python/pyproject.toml must declare an [tool.maturin] include for the CLI binary.
+
+        Maturin does not auto-bundle arbitrary files from python-source — only
+        .py files are gathered automatically. An explicit 'include' entry is
+        required so the precompiled zuit / zuit.exe binary is added to the wheel.
+        """
+        here = os.path.dirname(__file__)
+        pyproject_path = os.path.normpath(
+            os.path.join(here, "..", "pyproject.toml")
+        )
+        with open(pyproject_path, "r") as f:
+            content = f.read()
+
+        # Accept either TOML array-of-strings or array-of-tables form.
+        # Both must at minimum reference the Unix binary name 'zuit/zuit'.
+        self.assertIn(
+            "zuit/zuit",
+            content,
+            "pyproject.toml [tool.maturin] include must reference 'zuit/zuit' "
+            "so the native CLI binary is bundled in the wheel",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

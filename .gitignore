@@ -29,3 +29,7 @@
 # Python launcher build artifacts.
 __pycache__/
 *.pyc
+
+# Precompiled CLI binary staged for maturin wheel build (CI-only artifact).
+bindings/python/python/zuit/zuit
+bindings/python/python/zuit/zuit.exe

@@ -27,3 +27,10 @@ zuit = "zuit._cli:main"
 module-name = "zuit"
 python-source = "python"
 features = ["pyo3/extension-module"]
+# Explicitly bundle the precompiled CLI binary that the build-wheels CI job
+# stages into python/zuit/ before invoking maturin. Maturin only auto-includes
+# .py files from python-source; arbitrary binaries require an explicit entry.
+include = [
+  "python/zuit/zuit",
+  "python/zuit/zuit.exe",
+]

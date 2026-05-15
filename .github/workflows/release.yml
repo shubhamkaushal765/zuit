@@ -65,6 +65,24 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      # Build the native CLI binary in this job so it can be staged into the
+      # python-source tree before maturin runs. This avoids cross-job artifact
+      # wiring: the binary is compiled and bundled in a single job per OS.
+      - name: build CLI binary
+        run: cargo build --release -p zuit
+      # Stage the compiled binary next to _cli.py so maturin bundles it.
+      # pyproject.toml [tool.maturin] include lists both zuit and zuit.exe;
+      # only the file that actually exists on each OS will be present.
+      - name: stage CLI binary for maturin (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          cp target/release/zuit bindings/python/python/zuit/zuit
+          chmod +x bindings/python/python/zuit/zuit
+      - name: stage CLI binary for maturin (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Copy-Item target\release\zuit.exe bindings\python\python\zuit\zuit.exe
       - uses: PyO3/maturin-action@v1
         with:
           working-directory: bindings/python
