@@ -1,0 +1,56 @@
+/* Scope component library — shared CSS module */
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 10px;
+  padding: 2px 8px;
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1.5;
+  white-space: nowrap;
+  border: 0.5px solid var(--cl-border-muted);
+  background: var(--cl-surface-card);
+  color: var(--cl-text-muted);
+}
+
+.size-sm { font-size: 10px; padding: 2px 8px; }
+.size-md { font-size: 11px; padding: 3px 10px; }
+
+.monospace { font-family: var(--ifm-font-family-monospace, ui-monospace, SFMono-Regular, Menlo, monospace); }
+
+.tone-neutral {
+  background: var(--cl-surface-card);
+  color: var(--cl-text-muted);
+  border-color: var(--cl-border-muted);
+}
+
+.tone-info {
+  background: var(--cl-state-info-bg);
+  color: var(--cl-state-info-text);
+  border-color: var(--cl-state-info-border);
+}
+
+.tone-success {
+  background: var(--cl-state-tip-bg);
+  color: var(--cl-state-tip-text);
+  border-color: var(--cl-state-tip-border);
+}
+
+.tone-warning {
+  background: var(--cl-state-caution-bg);
+  color: var(--cl-state-caution-text);
+  border-color: var(--cl-state-caution-border);
+}
+
+.tone-danger {
+  background: var(--cl-state-warning-bg);
+  color: var(--cl-state-warning-text);
+  border-color: var(--cl-state-warning-border);
+}
+
+.tone-primary {
+  background: transparent;
+  color: var(--cl-accent-primary);
+  border-color: var(--cl-accent-primary);
+}
