@@ -26,9 +26,9 @@ use std::sync::mpsc;
 use std::time::{Duration, Instant};
 
 use anyhow::{Context as _, Result};
+use notify::Watcher as _;
 use zuit_core::cache::{AnalysisCache, CacheStore as _, JsonCacheStore};
 use zuit_core::{Config, Engine};
-use notify::Watcher as _;
 
 use crate::cli::WatchArgs;
 use crate::registry_builtin::build_registry;

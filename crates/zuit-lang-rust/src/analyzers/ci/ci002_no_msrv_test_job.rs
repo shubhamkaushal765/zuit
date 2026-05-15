@@ -111,9 +111,9 @@ impl zuit_core::Analyzer for Ci002NoMsrvTestJob {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use zuit_core::{Analyzer, Config, Project};
     use std::fs;
     use std::io::Write as _;
+    use zuit_core::{Analyzer, Config, Project};
 
     fn setup_ci_and_run(toml: &str, workflow_content: Option<&str>) -> Vec<Finding> {
         let dir = tempfile::TempDir::new().unwrap();

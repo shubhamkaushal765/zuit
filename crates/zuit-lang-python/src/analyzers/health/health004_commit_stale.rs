@@ -115,9 +115,9 @@ impl zuit_core::Analyzer for Health004CommitStale {
 mod tests {
     use super::*;
     use crate::analyzers::health::git_log::{Commit, GitLog};
-    use zuit_core::{Analyzer, Config, Project};
     use std::io::Write as _;
     use time::OffsetDateTime;
+    use zuit_core::{Analyzer, Config, Project};
 
     fn now() -> OffsetDateTime {
         OffsetDateTime::now_utc()

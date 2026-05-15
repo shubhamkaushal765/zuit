@@ -120,8 +120,8 @@ fn estimate_byte_offset(path: &std::path::Path, line: u32, col: u32) -> u32 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use zuit_core::{Analyzer, Config, Project};
     use std::io::Write as _;
+    use zuit_core::{Analyzer, Config, Project};
 
     fn run(toml_content: Option<&str>) -> Vec<Finding> {
         let dir = tempfile::TempDir::new().unwrap();

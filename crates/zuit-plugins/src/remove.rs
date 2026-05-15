@@ -3,8 +3,8 @@
 use std::{fs, io, path::Path};
 
 use crate::{
-    store::{acquire_install_lock_in, plugins_dir, sidecar_path},
     PluginError,
+    store::{acquire_install_lock_in, plugins_dir, sidecar_path},
 };
 
 // ---------------------------------------------------------------------------
@@ -113,8 +113,7 @@ mod tests {
         let fixture = echo_fixture();
 
         // Install first so we have something to remove.
-        install_local_in(&plugins_dir, &fixture, None)
-            .expect("install_local_in should succeed");
+        install_local_in(&plugins_dir, &fixture, None).expect("install_local_in should succeed");
 
         let install_dir = plugins_dir.join("echo");
         let sidecar = plugins_dir.join("echo.source.json");
@@ -186,7 +185,12 @@ mod tests {
         };
 
         run(&["git", "init", "--bare", &bare.to_string_lossy()]);
-        run(&["git", "clone", &bare.to_string_lossy(), &work.to_string_lossy()]);
+        run(&[
+            "git",
+            "clone",
+            &bare.to_string_lossy(),
+            &work.to_string_lossy(),
+        ]);
 
         let fixture = echo_fixture();
         std::fs::copy(

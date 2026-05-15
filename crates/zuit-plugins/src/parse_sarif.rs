@@ -495,7 +495,8 @@ mod tests {
         // Already-prefixed: must stay unchanged.
         let already = br#"{"runs":[{"results":[{"ruleId":"ZIG/leak","level":"error","message":{"text":"m"}}]}]}"#;
         // Bare (no prefix): must get prefix prepended.
-        let bare = br#"{"runs":[{"results":[{"ruleId":"leak","level":"error","message":{"text":"m"}}]}]}"#;
+        let bare =
+            br#"{"runs":[{"results":[{"ruleId":"leak","level":"error","message":{"text":"m"}}]}]}"#;
 
         let root = PathBuf::from("/proj");
         let project = empty_project(&root);
@@ -504,13 +505,11 @@ mod tests {
         let f_bare = parse_sarif(bare, &project, &root, "acme-zig", "ZIG/");
 
         assert_eq!(
-            f_already[0].rule_id,
-            "ZIG/leak",
+            f_already[0].rule_id, "ZIG/leak",
             "pre-prefixed rule_id must stay unchanged"
         );
         assert_eq!(
-            f_bare[0].rule_id,
-            "ZIG/leak",
+            f_bare[0].rule_id, "ZIG/leak",
             "bare rule_id must get prefix prepended"
         );
     }
@@ -520,7 +519,8 @@ mod tests {
     #[test]
     fn rejects_missing_runs() {
         // Valid JSON but `runs` field is absent → parse-error finding, no panic.
-        let sarif = br#"{"$schema":"https://json.schemastore.org/sarif-2.1.0.json","version":"2.1.0"}"#;
+        let sarif =
+            br#"{"$schema":"https://json.schemastore.org/sarif-2.1.0.json","version":"2.1.0"}"#;
         let findings = parse(sarif);
         assert_eq!(
             findings.len(),

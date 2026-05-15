@@ -24,11 +24,11 @@
 //! | Low               | `"info"`            |
 //! | Info              | `"info"`            |
 
+use quick_xml::Writer;
+use quick_xml::events::{BytesDecl, BytesEnd, BytesStart, Event};
 use zuit_core::analyzer::Severity;
 use zuit_core::engine::Report;
 use zuit_core::finding::Finding;
-use quick_xml::Writer;
-use quick_xml::events::{BytesDecl, BytesEnd, BytesStart, Event};
 
 use crate::ReportError;
 

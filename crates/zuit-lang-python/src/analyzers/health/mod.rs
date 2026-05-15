@@ -103,9 +103,9 @@ mod tests {
         health004_commit_stale::Health004CommitStale,
         health005_changelog_missing::Health005ChangelogMissing,
     };
-    use zuit_core::{Analyzer, Config, Project, Severity};
     use std::io::Write as _;
     use time::OffsetDateTime;
+    use zuit_core::{Analyzer, Config, Project, Severity};
 
     fn now() -> OffsetDateTime {
         OffsetDateTime::now_utc()

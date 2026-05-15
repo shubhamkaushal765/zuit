@@ -45,10 +45,7 @@ use zuit_core::{
 use crate::complexity;
 
 /// Builds the semantic index for a parsed JS/TS `Program`.
-pub(crate) fn build_index(
-    program: &Program<'_>,
-    source: &zuit_core::SourceFile,
-) -> SemanticIndex {
+pub(crate) fn build_index(program: &Program<'_>, source: &zuit_core::SourceFile) -> SemanticIndex {
     let mut ctx = IndexCtx::new(program);
 
     for stmt in &program.body {
@@ -743,11 +740,7 @@ fn effective_visibility(name: Option<&str>, exported: bool) -> Visibility {
 
 // ── comments + JSDoc ─────────────────────────────────────────────────────────
 
-fn extract_comments(
-    program: &Program<'_>,
-    source: &zuit_core::SourceFile,
-    ctx: &mut IndexCtx<'_>,
-) {
+fn extract_comments(program: &Program<'_>, source: &zuit_core::SourceFile, ctx: &mut IndexCtx<'_>) {
     let bytes = source.as_str().as_bytes();
     for c in &program.comments {
         let span = span_of(c.span);
@@ -848,8 +841,8 @@ fn comment_text(c: &Comment, bytes: &[u8]) -> String {
 mod tests {
     use super::*;
     use crate::parse::parse;
-    use zuit_core::{FunctionKind, SourceFile, Visibility};
     use std::sync::Arc;
+    use zuit_core::{FunctionKind, SourceFile, Visibility};
 
     fn idx_of(path: &str, code: &str) -> SemanticIndex {
         let src = Arc::new(SourceFile::new(path, code.as_bytes().to_vec()));

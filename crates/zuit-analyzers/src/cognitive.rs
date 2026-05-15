@@ -111,8 +111,8 @@ impl Analyzer for CognitiveAnalyzer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use zuit_core::{Config, Language, SourceFile};
     use std::sync::Arc;
+    use zuit_core::{Config, Language, SourceFile};
 
     fn rust_parse(path: &str, source: &str) -> ParsedFile {
         let src = Arc::new(SourceFile::new(path, source.as_bytes().to_vec()));

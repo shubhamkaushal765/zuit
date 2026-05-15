@@ -36,11 +36,7 @@ fn plugin_round_trip_through_analyze() {
     std::fs::write(target.path().join("hello.py"), "print('hi')\n").unwrap();
 
     let fixture = workspace_path("crates/zuit-plugins/tests/fixtures/echo-plugin");
-    assert!(
-        fixture.exists(),
-        "fixture missing at {}",
-        fixture.display()
-    );
+    assert!(fixture.exists(), "fixture missing at {}", fixture.display());
 
     // 1. add-analyzer — installs the echo plugin.
     let add_stdout = String::from_utf8(

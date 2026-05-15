@@ -19,12 +19,12 @@ use toml::Value;
 /// Parsed contents of `meta/project.toml`.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ProjectMeta {
-    /// Package / distribution name (used by cargo + PyPI).
+    /// Package / distribution name (used by cargo + `PyPI`).
     pub name: String,
     /// Optional npm-only package-name override. The npm name-similarity
     /// heuristic rejects short names like `zuit` (too close to `zuul`,
     /// `lit`, etc.), so the npm distribution uses a scoped name while
-    /// the Rust crate and PyPI package keep the unscoped one.
+    /// the Rust crate and `PyPI` package keep the unscoped one.
     pub npm_name: Option<String>,
     /// `SemVer` version string.
     pub version: String,

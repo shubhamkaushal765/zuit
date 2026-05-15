@@ -14,13 +14,13 @@
 //! will not be flagged. Full alias-tracking would require dataflow analysis,
 //! which is out of scope for v1.
 
+use rustpython_parser::ast::{Expr, Ranged, Stmt};
+use smallvec::smallvec;
 use zuit_core::{
     AnalysisContext, AnalyzerId, Dimension, Finding, LanguageId, Location, ParsedFile, RuleMeta,
     Severity, SupportedLanguages,
     span::{ByteOffset, Span},
 };
-use rustpython_parser::ast::{Expr, Ranged, Stmt};
-use smallvec::smallvec;
 
 /// The stable rule ID for this analyzer.
 const RULE_ID: &str = "SEC002-eval-sink";
@@ -312,8 +312,8 @@ fn check_expr(
 mod tests {
     use super::*;
     use crate::parse::PythonLanguage;
-    use zuit_core::{Analyzer, Config, Language, LanguageId, SourceFile};
     use std::sync::Arc;
+    use zuit_core::{Analyzer, Config, Language, LanguageId, SourceFile};
 
     fn analyze(src: &str) -> Vec<Finding> {
         let source = Arc::new(SourceFile::new("test.py", src.as_bytes().to_vec()));

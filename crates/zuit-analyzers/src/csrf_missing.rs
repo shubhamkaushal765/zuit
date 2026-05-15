@@ -288,8 +288,8 @@ impl Analyzer for CsrfMissingAnalyzer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use zuit_core::{Config, Language, SourceFile};
     use std::sync::Arc;
+    use zuit_core::{Config, Language, SourceFile};
 
     fn rust_parse(path: &str, source: &str) -> ParsedFile {
         let src = Arc::new(SourceFile::new(path, source.as_bytes().to_vec()));
@@ -512,9 +512,7 @@ pub fn add(x: i32, y: i32) -> i32 {
         // decl_start = 634, lookback_start = 378.
         // 378 - 32 = 346; 346 % 3 = 1 -> inside the 2nd byte of a `─`.
         let bars = "─".repeat(200);
-        let source = format!(
-            "use oxc_ast::ast::Expression;\n//{bars}x\nfn handler() {{}}\n"
-        );
+        let source = format!("use oxc_ast::ast::Expression;\n//{bars}x\nfn handler() {{}}\n");
 
         let file = rust_parse("regression_unicode.rs", &source);
         let config = Config::default();

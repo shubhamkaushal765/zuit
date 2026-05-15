@@ -120,8 +120,8 @@ impl Analyzer for Pkg002MissingTypesAnalyzer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use zuit_core::{Config, Project};
     use tempfile::TempDir;
+    use zuit_core::{Config, Project};
 
     fn write(dir: &std::path::Path, name: &str, content: &str) {
         std::fs::write(dir.join(name), content).expect("invariant: temp dir is writable");

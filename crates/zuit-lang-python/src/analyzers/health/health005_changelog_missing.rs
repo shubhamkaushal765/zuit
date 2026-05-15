@@ -129,8 +129,8 @@ pub(crate) fn has_changelog(root: &Path) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use zuit_core::{Analyzer, Config, Project};
     use std::io::Write as _;
+    use zuit_core::{Analyzer, Config, Project};
 
     fn run(root: &Path) -> Vec<Finding> {
         let project = Project::new(root, vec![]);

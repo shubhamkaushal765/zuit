@@ -103,8 +103,8 @@ impl Analyzer for Chain001NoLockfileAnalyzer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use zuit_core::{Config, Project};
     use tempfile::TempDir;
+    use zuit_core::{Config, Project};
 
     fn write(dir: &Path, name: &str, content: &str) {
         std::fs::write(dir.join(name), content).expect("invariant: temp dir is writable");

@@ -3,13 +3,13 @@
 //! # Overview
 //!
 //! [`PluginAnalyzer`] implements the [`zuit_core::Analyzer`] trait. When the
-//! engine calls [`PluginAnalyzer::analyze_project`] it:
+//! engine calls [`zuit_core::Analyzer::analyze_project`] it:
 //!
 //! 1. Resolves the plugin's executable: checks `plugin_dir/command[0]` first,
 //!    then falls back to `which::which(command[0])` for PATH resolution.
 //! 2. Spawns the subprocess via [`zuit_core::external::run_with_limits`].
 //! 3. Dispatches stdout to the appropriate parser
-//!    ([`crate::parse_ndjson`] or [`crate::parse_sarif`]).
+//!    ([`crate::parse_ndjson`] or [`crate::parse_sarif()`]).
 //! 4. Returns the resulting findings.
 //!
 //! # Operational rule IDs
@@ -52,14 +52,14 @@ use crate::{parse_ndjson, parse_sarif};
 /// If the binary cannot be found, times out, produces too much output, or fails
 /// to spawn, a single operational finding is emitted in its place. Operational
 /// rule IDs (`PLUGIN/<name>-binary-missing`, etc.) are **not** registered in
-/// [`rules()`][Self::rules] — they appear in output but not in `list analyzers`.
+/// [`rules()`][zuit_core::Analyzer::rules] — they appear in output but not in `list analyzers`.
 ///
 /// # `dimension()` vs per-finding dimension
 ///
-/// [`PluginAnalyzer::dimension`] returns `Dimension::Custom("plugin".into())` as
+/// [`zuit_core::Analyzer::dimension`] returns `Dimension::Custom("plugin".into())` as
 /// a fallback metadata value only. The actual `Dimension` of each emitted
 /// [`Finding`] comes from the per-finding `dimension` field in the plugin's stdout,
-/// resolved by the parser (see [`crate::parse_ndjson`] / [`crate::parse_sarif`]).
+/// resolved by the parser (see [`crate::parse_ndjson`] / [`crate::parse_sarif()`]).
 pub struct PluginAnalyzer {
     /// Validated plugin manifest describing the command, format, and limits.
     manifest: PluginManifest,
@@ -143,7 +143,7 @@ impl zuit_core::Analyzer for PluginAnalyzer {
         AnalyzerKind::ExternalTool
     }
 
-    /// No-op: all work happens in [`Self::analyze_project`].
+    /// No-op: all work happens in [`zuit_core::Analyzer::analyze_project`].
     fn analyze_file(&self, _ctx: &AnalysisContext<'_>, _file: &ParsedFile) -> Vec<Finding> {
         Vec::new()
     }
@@ -173,9 +173,7 @@ impl zuit_core::Analyzer for PluginAnalyzer {
                         name,
                         format!("PLUGIN/{name}-binary-missing"),
                         Severity::Info,
-                        format!(
-                            "plugin binary {argv0:?} not found in plugin directory or PATH"
-                        ),
+                        format!("plugin binary {argv0:?} not found in plugin directory or PATH"),
                     )];
                 }
             }
@@ -259,9 +257,7 @@ impl zuit_core::Analyzer for PluginAnalyzer {
                 name,
                 format!("PLUGIN/{name}-output-too-large"),
                 Severity::Medium,
-                format!(
-                    "plugin {name:?} stdout exceeded the {max_bytes}-byte cap"
-                ),
+                format!("plugin {name:?} stdout exceeded the {max_bytes}-byte cap"),
             )],
             Outcome::SpawnFailed(msg) => vec![Self::make_operational(
                 name,
@@ -289,8 +285,7 @@ mod tests {
 
     /// Returns the path to the echo-plugin fixture directory.
     fn echo_fixture_dir() -> PathBuf {
-        Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("tests/fixtures/echo-plugin")
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/echo-plugin")
     }
 
     /// Returns the [`PluginManifest`] parsed from the echo-plugin fixture.
@@ -355,7 +350,11 @@ mod tests {
         let ctx = zuit_core::AnalysisContext::new(&cfg);
         let findings = analyzer.analyze_project(&ctx, &project);
 
-        assert_eq!(findings.len(), 1, "expected exactly one operational finding");
+        assert_eq!(
+            findings.len(),
+            1,
+            "expected exactly one operational finding"
+        );
         let f = &findings[0];
         assert_eq!(f.rule_id, "PLUGIN/echo-binary-missing");
         assert_eq!(f.severity, Severity::Info);

@@ -2,14 +2,14 @@
 //!
 //! Tests are written first (TDD) and must fail before the implementation exists.
 
+use std::collections::BTreeMap;
+use std::path::PathBuf;
 use zuit_core::analyzer::{Dimension, Severity};
 use zuit_core::engine::{Report, RunStats};
 use zuit_core::finding::Finding;
 use zuit_core::id::AnalyzerId;
 use zuit_core::span::{ByteOffset, LineCol, Location, Span};
 use zuit_report::checkstyle::render_checkstyle;
-use std::collections::BTreeMap;
-use std::path::PathBuf;
 
 fn make_finding(
     file: &str,

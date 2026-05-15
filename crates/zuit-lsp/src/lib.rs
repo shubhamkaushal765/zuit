@@ -29,11 +29,11 @@ pub mod protocol;
 use std::io::{BufReader, Read, Write};
 use std::path::{Path, PathBuf};
 
-use zuit_core::config::Config;
-use zuit_core::engine::Engine;
 use serde_json::{Value, json};
 use thiserror::Error;
 use tracing::{debug, error, warn};
+use zuit_core::config::Config;
+use zuit_core::engine::Engine;
 
 use diagnostics::finding_to_diagnostic;
 use protocol::{

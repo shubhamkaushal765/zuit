@@ -189,8 +189,8 @@ pub fn run(args: &AnalyzeArgs) -> Result<i32> {
     let mut report = if use_cache {
         // Locate cache dir relative to the project root (same dir as the
         // resolved config or the analysis path itself).
-        let cache_dir = zuit_core::path::project_root(&args.path, args.config.as_deref())
-            .join(".zuit-cache");
+        let cache_dir =
+            zuit_core::path::project_root(&args.path, args.config.as_deref()).join(".zuit-cache");
         let store = JsonCacheStore::new(cache_dir);
         let mut cache = store.load().unwrap_or_default();
 

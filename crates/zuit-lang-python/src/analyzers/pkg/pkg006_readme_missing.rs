@@ -105,8 +105,8 @@ impl zuit_core::Analyzer for Pkg006ReadmeMissing {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use zuit_core::{Analyzer, Config, Project};
     use std::io::Write as _;
+    use zuit_core::{Analyzer, Config, Project};
 
     fn run(has_readme: bool, readme_name: &str) -> Vec<Finding> {
         let dir = tempfile::TempDir::new().unwrap();

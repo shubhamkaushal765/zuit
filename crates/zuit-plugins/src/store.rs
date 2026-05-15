@@ -19,7 +19,7 @@ use std::{
 use fs2::FileExt;
 use serde::{Deserialize, Serialize};
 
-use crate::{manifest::PluginManifest, PluginError};
+use crate::{PluginError, manifest::PluginManifest};
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -88,9 +88,7 @@ pub fn plugins_dir() -> Result<PathBuf, PluginError> {
     if let Ok(home) = std::env::var("HOME") {
         return Ok(PathBuf::from(home).join(".zuit").join("plugins"));
     }
-    Err(PluginError::Env(
-        "HOME or ZUIT_HOME must be set".to_owned(),
-    ))
+    Err(PluginError::Env("HOME or ZUIT_HOME must be set".to_owned()))
 }
 
 /// Returns the path to a plugin's install directory given its name.
@@ -282,7 +280,6 @@ pub fn list_installed_in(dir: &Path) -> Result<Vec<InstalledPlugin>, PluginError
 // Install lock
 // ---------------------------------------------------------------------------
 
-
 /// Open the lock file with `O_CLOEXEC` set so child processes (e.g. `git clone`
 /// spawned during installation) do not inherit the file descriptor and therefore
 /// do not accidentally hold the lock after the parent drops it.
@@ -396,9 +393,7 @@ mod tests {
         if let Some(h) = home {
             return Ok(PathBuf::from(h).join(".zuit").join("plugins"));
         }
-        Err(PluginError::Env(
-            "HOME or ZUIT_HOME must be set".to_owned(),
-        ))
+        Err(PluginError::Env("HOME or ZUIT_HOME must be set".to_owned()))
     }
 
     #[test]
@@ -438,8 +433,7 @@ mod tests {
             plugins_dir.join("echo.source.json").exists(),
             "sidecar should be a sibling file in plugins_dir"
         );
-        let read_back =
-            read_source_sidecar(plugins_dir, "echo").expect("read should succeed");
+        let read_back = read_source_sidecar(plugins_dir, "echo").expect("read should succeed");
         assert_eq!(original, read_back);
     }
 

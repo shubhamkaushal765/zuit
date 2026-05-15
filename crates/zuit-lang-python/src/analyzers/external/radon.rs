@@ -32,12 +32,12 @@
 use std::collections::HashMap;
 use std::path::Path;
 
+use serde::Deserialize;
 use zuit_core::{
     AnalysisContext, AnalyzerId, AnalyzerKind, Dimension, Finding, Location, Project, RuleMeta,
     Severity, SupportedLanguages,
     span::{ByteOffset, LineCol, Span},
 };
-use serde::Deserialize;
 
 use super::{DEFAULT_MAX_STDOUT_BYTES, DEFAULT_TIMEOUT_SECS, Outcome, run_with_limits};
 

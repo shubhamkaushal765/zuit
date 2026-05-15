@@ -68,10 +68,8 @@ impl zuit_core::Language for PythonLanguage {
             // `rustpython_parser::ParseError` carries an `offset: TextSize`
             // (a `u32` byte offset) and a `source_path: String`.
             let offset = e.offset.to_u32();
-            let span = zuit_core::Span::new(
-                zuit_core::ByteOffset(offset),
-                zuit_core::ByteOffset(offset),
-            );
+            let span =
+                zuit_core::Span::new(zuit_core::ByteOffset(offset), zuit_core::ByteOffset(offset));
             ParseError::Syntax {
                 file: source.path.clone(),
                 message: e.error.to_string(),

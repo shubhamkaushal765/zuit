@@ -25,10 +25,7 @@ use crate::span_util;
 // ── public entry point ────────────────────────────────────────────────────────
 
 /// Walk `file` and return a fully-populated [`SemanticIndex`].
-pub(crate) fn build_index(
-    file: &syn::File,
-    source: &Arc<zuit_core::SourceFile>,
-) -> SemanticIndex {
+pub(crate) fn build_index(file: &syn::File, source: &Arc<zuit_core::SourceFile>) -> SemanticIndex {
     let mut v = IndexVisitor::new(source.clone());
     v.visit_file(file);
 

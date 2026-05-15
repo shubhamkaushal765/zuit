@@ -3,8 +3,11 @@
 use std::{fs, io, path::Path, process::Command};
 
 use crate::{
-    store::{acquire_install_lock_in, plugins_dir, read_source_sidecar, write_source_sidecar, PluginSource},
     PluginError,
+    store::{
+        PluginSource, acquire_install_lock_in, plugins_dir, read_source_sidecar,
+        write_source_sidecar,
+    },
 };
 
 // ---------------------------------------------------------------------------
@@ -258,7 +261,12 @@ mod tests {
 
         // 1. Init a bare repo and a working clone.
         run(&["git", "init", "--bare", &bare.to_string_lossy()]);
-        run(&["git", "clone", &bare.to_string_lossy(), &work.to_string_lossy()]);
+        run(&[
+            "git",
+            "clone",
+            &bare.to_string_lossy(),
+            &work.to_string_lossy(),
+        ]);
 
         // 2. Populate the working tree with the echo fixture, commit, and push.
         let fixture = echo_fixture();
@@ -320,12 +328,10 @@ mod tests {
         let fixture = echo_fixture();
 
         // Install as a symlink (Unix default).
-        install_local_in(&plugins_dir, &fixture, None)
-            .expect("install_local_in should succeed");
+        install_local_in(&plugins_dir, &fixture, None).expect("install_local_in should succeed");
 
         // Update should return Ok without error.
-        update_in(&plugins_dir, "echo")
-            .expect("update of a local symlink should be a no-op Ok");
+        update_in(&plugins_dir, "echo").expect("update of a local symlink should be a no-op Ok");
 
         // The sidecar should still be intact.
         let sidecar = store::read_source_sidecar(&plugins_dir, "echo")
@@ -333,7 +339,9 @@ mod tests {
         let expected_target = std::fs::canonicalize(&fixture).unwrap();
         assert_eq!(
             sidecar,
-            PluginSource::Path { target: expected_target },
+            PluginSource::Path {
+                target: expected_target
+            },
             "sidecar should be unchanged after no-op update"
         );
     }

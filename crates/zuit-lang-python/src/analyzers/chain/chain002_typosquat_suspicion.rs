@@ -192,8 +192,8 @@ impl zuit_core::Analyzer for Chain002TyposquatSuspicion {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use zuit_core::{Analyzer, Config, Project, Severity};
     use std::io::Write as _;
+    use zuit_core::{Analyzer, Config, Project, Severity};
 
     fn run_with_threshold(toml_content: &str, threshold: usize) -> Vec<Finding> {
         let dir = tempfile::TempDir::new().unwrap();

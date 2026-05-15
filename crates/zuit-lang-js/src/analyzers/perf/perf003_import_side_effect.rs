@@ -35,11 +35,11 @@
 //! Calls to `require(...)` at module scope are excluded: they are normal CJS
 //! module imports, not side effects.
 
+use smallvec::smallvec;
 use zuit_core::{
     AnalysisContext, AnalyzerId, AnalyzerKind, Dimension, Finding, LanguageId, Location,
     ParsedFile, RuleMeta, Severity, SupportedLanguages,
 };
-use smallvec::smallvec;
 
 use crate::native_ast::JsCallee;
 
@@ -145,8 +145,8 @@ impl zuit_core::Analyzer for Perf003ImportSideEffectAnalyzer {
 mod tests {
     use super::*;
     use crate::parse::parse as js_parse;
-    use zuit_core::{Analyzer, Config, LanguageId, SourceFile};
     use std::sync::Arc;
+    use zuit_core::{Analyzer, Config, LanguageId, SourceFile};
 
     fn analyze(path: &str, src: &str) -> Vec<Finding> {
         let source = Arc::new(SourceFile::new(path, src.as_bytes().to_vec()));

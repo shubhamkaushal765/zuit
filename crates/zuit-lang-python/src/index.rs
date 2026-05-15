@@ -656,10 +656,10 @@ fn extract_comments(source: &zuit_core::SourceFile, ctx: &mut IndexCtx) {
 mod tests {
     use super::*;
     use crate::parse::PythonLanguage;
-    use zuit_core::Language;
-    use zuit_core::{FunctionKind, SourceFile, Visibility};
     use rustpython_parser::{Parse, ast::ModModule};
     use std::sync::Arc;
+    use zuit_core::Language;
+    use zuit_core::{FunctionKind, SourceFile, Visibility};
 
     fn parse_and_index(src: &str) -> SemanticIndex {
         let source = Arc::new(SourceFile::new("test.py", src.as_bytes().to_vec()));

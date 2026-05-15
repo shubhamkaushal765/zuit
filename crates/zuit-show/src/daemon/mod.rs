@@ -4,9 +4,9 @@
 //! only fully functional on Unix targets. To keep the `zuit-cli` surface
 //! identical across platforms (so `cargo install zuit` and `pip install zuit`
 //! produce a binary that links cleanly on Windows), this module exposes a
-//! cross-platform public API: on Unix it forwards to [`unix`]; on other
-//! targets it forwards to a [`windows`] stub whose `spawn*` calls return a
-//! "not supported" error and whose other entry points are inert.
+//! cross-platform public API: on Unix it forwards to the `unix` submodule;
+//! on other targets it forwards to a `windows` stub whose `spawn*` calls
+//! return a "not supported" error and whose other entry points are inert.
 
 #[cfg(unix)]
 mod unix;

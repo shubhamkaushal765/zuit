@@ -84,8 +84,8 @@ impl zuit_core::Analyzer for Ci005NoDependabot {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use zuit_core::{Analyzer, Config, Project};
     use std::fs;
+    use zuit_core::{Analyzer, Config, Project};
 
     fn run_in_dir(dir: &std::path::Path) -> Vec<Finding> {
         let project = Project::new(dir.to_path_buf(), vec![]);

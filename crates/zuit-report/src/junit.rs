@@ -34,11 +34,11 @@
 
 use std::fmt::Write as _;
 
+use quick_xml::Writer;
+use quick_xml::events::{BytesDecl, BytesEnd, BytesStart, BytesText, Event};
 use zuit_core::analyzer::{Dimension, Severity};
 use zuit_core::engine::Report;
 use zuit_core::finding::Finding;
-use quick_xml::Writer;
-use quick_xml::events::{BytesDecl, BytesEnd, BytesStart, BytesText, Event};
 
 use crate::ReportError;
 
@@ -275,13 +275,13 @@ mod tests {
     use std::collections::BTreeMap;
     use std::path::PathBuf;
 
+    use quick_xml::Reader;
+    use quick_xml::events::Event as XmlEvent;
     use zuit_core::Finding;
     use zuit_core::analyzer::{Dimension, Severity};
     use zuit_core::engine::{Report, RunStats};
     use zuit_core::id::AnalyzerId;
     use zuit_core::span::{ByteOffset, LineCol, Location, Span};
-    use quick_xml::Reader;
-    use quick_xml::events::Event as XmlEvent;
 
     use super::*;
 

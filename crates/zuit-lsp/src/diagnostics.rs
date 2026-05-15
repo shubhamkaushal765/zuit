@@ -19,9 +19,9 @@
 //! zuit stores positions as **1-indexed** `(line, column)` pairs.  LSP
 //! positions are **0-indexed**.  This module subtracts 1 from both fields.
 
+use serde_json::{Value, json};
 use zuit_core::analyzer::Severity;
 use zuit_core::finding::Finding;
-use serde_json::{Value, json};
 
 /// Converts `severity` to the LSP `DiagnosticSeverity` integer.
 ///

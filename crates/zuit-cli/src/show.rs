@@ -42,8 +42,7 @@ pub fn run() -> Result<i32> {
             let version_str = version.to_owned();
             let info = daemon::spawn(&home, version, move |port| {
                 let store = std::sync::Arc::new(zuit_show::HistoryStore::open(home_clone));
-                let _handle =
-                    zuit_show::start(&format!("127.0.0.1:{port}"), store, version_str)?;
+                let _handle = zuit_show::start(&format!("127.0.0.1:{port}"), store, version_str)?;
                 // The server worker thread is alive; block here until SIGTERM.
                 // _handle is dropped on process exit, triggering stop().
                 std::thread::park();

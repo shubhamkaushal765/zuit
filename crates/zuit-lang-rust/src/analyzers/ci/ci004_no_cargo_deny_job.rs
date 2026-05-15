@@ -88,8 +88,8 @@ impl zuit_core::Analyzer for Ci004NoCargoDenyJob {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use zuit_core::{Analyzer, Config, Project};
     use std::fs;
+    use zuit_core::{Analyzer, Config, Project};
 
     fn setup_and_run(workflow_content: &str) -> Vec<Finding> {
         let dir = tempfile::TempDir::new().unwrap();

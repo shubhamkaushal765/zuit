@@ -113,8 +113,8 @@ impl zuit_core::Analyzer for Eco001NoNoStdFeature {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use zuit_core::{Analyzer, Config, Project};
     use std::io::Write as _;
+    use zuit_core::{Analyzer, Config, Project};
 
     fn run_with_files(toml_content: &str, create_lib_rs: bool) -> Vec<Finding> {
         let dir = tempfile::TempDir::new().unwrap();

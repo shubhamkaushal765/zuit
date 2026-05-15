@@ -16,12 +16,12 @@ use std::io::Read;
 use std::path::Path;
 use std::time::Instant;
 
+use serde::Deserialize;
 use zuit_core::{
     AnalysisContext, AnalyzerId, AnalyzerKind, Dimension, Finding, Location, Project, RuleMeta,
     Severity, SupportedLanguages,
     span::{ByteOffset, LineCol, Span},
 };
-use serde::Deserialize;
 
 use crate::error::JsError;
 

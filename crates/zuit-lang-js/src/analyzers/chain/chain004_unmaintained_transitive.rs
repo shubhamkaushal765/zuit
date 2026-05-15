@@ -242,9 +242,9 @@ impl Analyzer for Chain004UnmaintainedTransitiveAnalyzer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use zuit_core::{Config, Project};
     use std::path::PathBuf;
     use tempfile::TempDir;
+    use zuit_core::{Config, Project};
 
     fn write(dir: &Path, name: &str, content: &str) {
         std::fs::write(dir.join(name), content).expect("invariant: temp dir is writable");

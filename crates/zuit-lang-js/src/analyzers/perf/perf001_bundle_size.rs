@@ -145,9 +145,9 @@ impl zuit_core::Analyzer for Perf001BundleSizeAnalyzer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use zuit_core::{Analyzer, Config, Project, Severity};
     use std::io::Write;
     use tempfile::TempDir;
+    use zuit_core::{Analyzer, Config, Project, Severity};
 
     fn run(root: &Path) -> Vec<Finding> {
         let project = Project::new(root.to_path_buf(), vec![]);

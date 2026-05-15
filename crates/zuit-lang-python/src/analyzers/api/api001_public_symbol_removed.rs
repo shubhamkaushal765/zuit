@@ -176,8 +176,8 @@ fn diff_api001(project: &Project, baseline: &PublicApi, head: &PublicApi) -> Vec
 mod tests {
     use super::*;
     use crate::analyzers::api::FunctionSig;
-    use zuit_core::{Analyzer, Config, Project};
     use std::io::Write as _;
+    use zuit_core::{Analyzer, Config, Project};
 
     fn make_project_with_py(src: &str) -> (tempfile::TempDir, Project) {
         let dir = tempfile::TempDir::new().unwrap();

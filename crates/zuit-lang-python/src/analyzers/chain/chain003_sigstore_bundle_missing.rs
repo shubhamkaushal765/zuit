@@ -140,8 +140,8 @@ impl zuit_core::Analyzer for Chain003SigstoreBundleMissing {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use zuit_core::{Analyzer, Config, Project};
     use std::io::Write as _;
+    use zuit_core::{Analyzer, Config, Project};
 
     fn setup(dir: &tempfile::TempDir) {
         let mut f = std::fs::File::create(dir.path().join("pyproject.toml")).unwrap();

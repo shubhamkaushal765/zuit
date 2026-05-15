@@ -24,12 +24,12 @@ use std::path::Path;
 use std::sync::OnceLock;
 use std::time::Instant;
 
+use regex::Regex;
 use zuit_core::{
     AnalysisContext, AnalyzerId, AnalyzerKind, Dimension, Finding, Location, Project, RuleMeta,
     Severity, SupportedLanguages,
     span::{ByteOffset, LineCol, Span},
 };
-use regex::Regex;
 
 use crate::error::JsError;
 

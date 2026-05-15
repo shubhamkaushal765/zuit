@@ -384,9 +384,9 @@ fn emit_cycle_findings(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use zuit_core::{Config, Language, SourceFile};
     use std::path::PathBuf;
     use std::sync::Arc;
+    use zuit_core::{Config, Language, SourceFile};
 
     // ── parse helpers ─────────────────────────────────────────────────────────
 

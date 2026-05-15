@@ -263,14 +263,14 @@ fn severity_label(sev: Severity) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::BTreeMap;
+    use std::path::PathBuf;
     use zuit_core::analyzer::{Dimension, Severity};
     use zuit_core::engine::{Report, RunStats};
     use zuit_core::finding::Finding;
     use zuit_core::id::AnalyzerId;
     use zuit_core::score::Score;
     use zuit_core::span::{ByteOffset, LineCol, Location, Span};
-    use std::collections::BTreeMap;
-    use std::path::PathBuf;
 
     fn make_report() -> Report {
         let mut scores = BTreeMap::new();

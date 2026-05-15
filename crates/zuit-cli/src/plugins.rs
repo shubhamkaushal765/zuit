@@ -2,8 +2,8 @@
 
 use anyhow::{Context, Result};
 use zuit_plugins::{
-    install_git, install_local, list_installed, looks_like_git_url, remove as remove_plugin,
-    update as update_plugin, PluginSource,
+    PluginSource, install_git, install_local, list_installed, looks_like_git_url,
+    remove as remove_plugin, update as update_plugin,
 };
 
 use crate::cli::{AddAnalyzerArgs, RemoveAnalyzerArgs, UpdateAnalyzerArgs};
@@ -27,16 +27,14 @@ pub(crate) fn add(args: &AddAnalyzerArgs) -> Result<i32> {
 
 /// Handle `zuit remove-analyzer`.
 pub(crate) fn remove(args: &RemoveAnalyzerArgs) -> Result<i32> {
-    remove_plugin(&args.name)
-        .with_context(|| format!("remove plugin '{}'", args.name))?;
+    remove_plugin(&args.name).with_context(|| format!("remove plugin '{}'", args.name))?;
     println!("Removed plugin '{}'", args.name);
     Ok(0)
 }
 
 /// Handle `zuit update-analyzer`.
 pub(crate) fn update(args: &UpdateAnalyzerArgs) -> Result<i32> {
-    update_plugin(&args.name)
-        .with_context(|| format!("update plugin '{}'", args.name))?;
+    update_plugin(&args.name).with_context(|| format!("update plugin '{}'", args.name))?;
     println!("Updated plugin '{}'", args.name);
     Ok(0)
 }

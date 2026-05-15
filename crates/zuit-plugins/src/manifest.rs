@@ -168,7 +168,7 @@ impl PluginManifest {
                 None => {
                     return Err(PluginError::Manifest(
                         "manifest is missing the required `name` field".to_owned(),
-                    ))
+                    ));
                 }
             },
         };
@@ -294,11 +294,11 @@ mod tests {
     #[test]
     fn reject_invalid_name() {
         let cases: &[&str] = &[
-            "AcmeZig",                                   // capital letters
-            "-starts-with-hyphen",                       // leading hyphen
-            &"a".repeat(65),                             // > 64 chars
-            "has_underscore",                            // underscore not allowed
-            "",                                          // empty
+            "AcmeZig",             // capital letters
+            "-starts-with-hyphen", // leading hyphen
+            &"a".repeat(65),       // > 64 chars
+            "has_underscore",      // underscore not allowed
+            "",                    // empty
         ];
 
         for bad_name in cases {

@@ -19,17 +19,12 @@
 //! 2. Post-clone: the manifest's `name` field is used as the final install name
 //!    (unless `name_override` was set, in which case the override always wins).
 
-use std::{
-    fs,
-    path::Path,
-    process::Command,
-    time::SystemTime,
-};
+use std::{fs, path::Path, process::Command, time::SystemTime};
 
 use crate::{
+    PluginError,
     manifest::PluginManifest,
     store::{self, InstalledPlugin, PluginSource},
-    PluginError,
 };
 
 // ---------------------------------------------------------------------------
@@ -53,7 +48,10 @@ use crate::{
 ///   already present.
 /// - [`PluginError::Lock`] if the install lock cannot be acquired.
 /// - [`PluginError::Env`] if the plugins directory cannot be determined.
-pub fn install_local(path: &Path, name_override: Option<&str>) -> Result<InstalledPlugin, PluginError> {
+pub fn install_local(
+    path: &Path,
+    name_override: Option<&str>,
+) -> Result<InstalledPlugin, PluginError> {
     let plugins_dir = store::plugins_dir()?;
     install_local_in(&plugins_dir, path, name_override)
 }
@@ -92,9 +90,8 @@ pub fn install_local_in(
 
     // Load and validate the manifest.
     let manifest_path = path.join("zuit-plugin.toml");
-    let toml_str = fs::read_to_string(&manifest_path).map_err(|_| {
-        PluginError::LocalPath("manifest not found: zuit-plugin.toml".to_owned())
-    })?;
+    let toml_str = fs::read_to_string(&manifest_path)
+        .map_err(|_| PluginError::LocalPath("manifest not found: zuit-plugin.toml".to_owned()))?;
 
     // Parse with manifest's own name taking effect; we apply the override after.
     let mut manifest = PluginManifest::load_from_str(&toml_str, None)?;
@@ -168,10 +165,7 @@ pub fn install_local_in(
 /// - [`PluginError::Manifest`] / [`PluginError::Toml`] if the cloned manifest is invalid
 ///   (the cloned directory is removed before returning).
 /// - [`PluginError::Lock`] if the install lock cannot be acquired.
-pub fn install_git(
-    url: &str,
-    name_override: Option<&str>,
-) -> Result<InstalledPlugin, PluginError> {
+pub fn install_git(url: &str, name_override: Option<&str>) -> Result<InstalledPlugin, PluginError> {
     let plugins_dir = store::plugins_dir()?;
     install_git_in(&plugins_dir, url, name_override)
 }
@@ -221,27 +215,47 @@ pub fn install_git_in(
     let clone_out = Command::new("git")
         .args(["clone", "--depth", "1", url, &dir_str])
         .output()
-        .map_err(|e| PluginError::Git { stage: "clone", message: format!("failed to spawn git: {e}") })?;
+        .map_err(|e| PluginError::Git {
+            stage: "clone",
+            message: format!("failed to spawn git: {e}"),
+        })?;
     if !clone_out.status.success() {
-        return Err(PluginError::Git { stage: "clone", message: String::from_utf8_lossy(&clone_out.stderr).into_owned() });
+        return Err(PluginError::Git {
+            stage: "clone",
+            message: String::from_utf8_lossy(&clone_out.stderr).into_owned(),
+        });
     }
 
     let rev_out = Command::new("git")
         .args(["-C", &dir_str, "rev-parse", "HEAD"])
         .output()
-        .map_err(|e| { let _ = fs::remove_dir_all(&tentative_dir); PluginError::Git { stage: "rev-parse", message: format!("failed to spawn git: {e}") } })?;
+        .map_err(|e| {
+            let _ = fs::remove_dir_all(&tentative_dir);
+            PluginError::Git {
+                stage: "rev-parse",
+                message: format!("failed to spawn git: {e}"),
+            }
+        })?;
     if !rev_out.status.success() {
         let _ = fs::remove_dir_all(&tentative_dir);
-        return Err(PluginError::Git { stage: "rev-parse", message: String::from_utf8_lossy(&rev_out.stderr).into_owned() });
+        return Err(PluginError::Git {
+            stage: "rev-parse",
+            message: String::from_utf8_lossy(&rev_out.stderr).into_owned(),
+        });
     }
     let sha = String::from_utf8_lossy(&rev_out.stdout).trim().to_owned();
 
     let manifest_path = tentative_dir.join("zuit-plugin.toml");
     let toml_str = fs::read_to_string(&manifest_path).map_err(|e| {
         let _ = fs::remove_dir_all(&tentative_dir);
-        PluginError::Git { stage: "manifest", message: format!("cannot read zuit-plugin.toml: {e}") }
+        PluginError::Git {
+            stage: "manifest",
+            message: format!("cannot read zuit-plugin.toml: {e}"),
+        }
     })?;
-    let manifest = PluginManifest::load_from_str(&toml_str, None).inspect_err(|_e| { let _ = fs::remove_dir_all(&tentative_dir); })?;
+    let manifest = PluginManifest::load_from_str(&toml_str, None).inspect_err(|_e| {
+        let _ = fs::remove_dir_all(&tentative_dir);
+    })?;
 
     // Pass 2 (post-clone): if name_override was None, use the manifest name as
     // the final install name and rename the cloned directory accordingly.
@@ -265,12 +279,22 @@ pub fn install_git_in(
             .format(&Rfc3339)
             .unwrap_or_else(|_| String::new())
     };
-    let source = PluginSource::Git { url: url.to_owned(), sha, fetched_at: Some(fetched_at) };
+    let source = PluginSource::Git {
+        url: url.to_owned(),
+        sha,
+        fetched_at: Some(fetched_at),
+    };
     if let Err(e) = store::write_source_sidecar(plugins_dir, &final_name, &source) {
         let _ = fs::remove_dir_all(&final_dir);
         return Err(e);
     }
-    Ok(InstalledPlugin { name: final_name, manifest, source, installed_at: SystemTime::now(), plugin_dir: final_dir })
+    Ok(InstalledPlugin {
+        name: final_name,
+        manifest,
+        source,
+        installed_at: SystemTime::now(),
+        plugin_dir: final_dir,
+    })
 }
 
 // ---------------------------------------------------------------------------
@@ -318,14 +342,21 @@ fn is_scp_git_url(s: &str) -> bool {
     let Some((user, rest)) = s.split_once('@') else {
         return false;
     };
-    if user.is_empty() || !user.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '.' | '-')) {
+    if user.is_empty()
+        || !user
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '.' | '-'))
+    {
         return false;
     }
     // rest must contain ':' preceded by [A-Za-z0-9_.-]+ (the host).
     let Some((host, _path)) = rest.split_once(':') else {
         return false;
     };
-    !host.is_empty() && host.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '.' | '-'))
+    !host.is_empty()
+        && host
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '.' | '-'))
 }
 
 /// Derives a plugin name slug from a git URL.
@@ -367,7 +398,7 @@ pub(crate) fn derive_name_from_url(url: &str) -> Option<String> {
             // Strip the host (everything up to and including the first '/').
             match after_scheme.find('/') {
                 Some(slash_pos) => &after_scheme[slash_pos..], // keeps leading '/'
-                None => return None, // bare host, no path
+                None => return None,                           // bare host, no path
             }
         } else if let Some(colon_pos) = s.find(':') {
             // Check if this looks like scp-style: user@host:path
@@ -574,8 +605,7 @@ mod tests {
 
         // The installed directory should be a symlink.
         let installed_path = plugins_dir.join("echo");
-        let meta = fs::symlink_metadata(&installed_path)
-            .expect("symlink_metadata should succeed");
+        let meta = fs::symlink_metadata(&installed_path).expect("symlink_metadata should succeed");
         assert!(
             meta.file_type().is_symlink(),
             "expected a symlink at {installed_path:?}"
@@ -601,7 +631,9 @@ mod tests {
         let expected_target = fs::canonicalize(&fixture).unwrap();
         assert_eq!(
             sidecar,
-            PluginSource::Path { target: expected_target },
+            PluginSource::Path {
+                target: expected_target
+            },
             "sidecar target mismatch"
         );
 
@@ -635,7 +667,9 @@ mod tests {
         let expected_target = fs::canonicalize(&fixture).unwrap();
         assert_eq!(
             sidecar,
-            PluginSource::Path { target: expected_target },
+            PluginSource::Path {
+                target: expected_target
+            },
             "sidecar target mismatch for name-overridden install"
         );
 
@@ -652,8 +686,7 @@ mod tests {
         let fixture = echo_fixture();
 
         // First install succeeds.
-        install_local_in(&plugins_dir, &fixture, None)
-            .expect("first install should succeed");
+        install_local_in(&plugins_dir, &fixture, None).expect("first install should succeed");
 
         // Second install with the same name must return AlreadyInstalled.
         let second = install_local_in(&plugins_dir, &fixture, None);
@@ -745,8 +778,8 @@ mod tests {
         let url = format!("file://{}", bare.display());
 
         // 6. Install via install_git_in.
-        let result = install_git_in(&plugins_dir, &url, None)
-            .expect("install_git_in should succeed");
+        let result =
+            install_git_in(&plugins_dir, &url, None).expect("install_git_in should succeed");
 
         // 7. Assertions.
         assert_eq!(result.name, "echo", "plugin name should match manifest");
@@ -760,16 +793,17 @@ mod tests {
         );
 
         // Sidecar must record Git source.
-        let sidecar = store::read_source_sidecar(&plugins_dir, "echo")
-            .expect("sidecar should be readable");
+        let sidecar =
+            store::read_source_sidecar(&plugins_dir, "echo").expect("sidecar should be readable");
         match &sidecar {
-            PluginSource::Git { url: u, sha, fetched_at } => {
+            PluginSource::Git {
+                url: u,
+                sha,
+                fetched_at,
+            } => {
                 assert_eq!(u, &url, "sidecar url mismatch");
                 assert!(!sha.is_empty(), "sha should be non-empty");
-                assert!(
-                    fetched_at.is_some(),
-                    "fetched_at should be present"
-                );
+                assert!(fetched_at.is_some(), "fetched_at should be present");
             }
             other @ PluginSource::Path { .. } => panic!("expected Git source, got {other:?}"),
         }
@@ -791,10 +825,19 @@ mod tests {
         fs::create_dir_all(&plugins_dir).unwrap();
 
         run(&["git", "init", "--bare", &bare.to_string_lossy()]);
-        run(&["git", "clone", &bare.to_string_lossy(), &work.to_string_lossy()]);
+        run(&[
+            "git",
+            "clone",
+            &bare.to_string_lossy(),
+            &work.to_string_lossy(),
+        ]);
 
         let fixture = echo_fixture();
-        fs::copy(fixture.join("zuit-plugin.toml"), work.join("zuit-plugin.toml")).unwrap();
+        fs::copy(
+            fixture.join("zuit-plugin.toml"),
+            work.join("zuit-plugin.toml"),
+        )
+        .unwrap();
         fs::copy(fixture.join("run.sh"), work.join("run.sh")).unwrap();
         git(&work, &["add", "."]);
         git(&work, &["commit", "-m", "init"]);
@@ -823,10 +866,19 @@ mod tests {
         fs::create_dir_all(&plugins_dir).unwrap();
 
         run(&["git", "init", "--bare", &bare.to_string_lossy()]);
-        run(&["git", "clone", &bare.to_string_lossy(), &work.to_string_lossy()]);
+        run(&[
+            "git",
+            "clone",
+            &bare.to_string_lossy(),
+            &work.to_string_lossy(),
+        ]);
 
         let fixture = echo_fixture();
-        fs::copy(fixture.join("zuit-plugin.toml"), work.join("zuit-plugin.toml")).unwrap();
+        fs::copy(
+            fixture.join("zuit-plugin.toml"),
+            work.join("zuit-plugin.toml"),
+        )
+        .unwrap();
         fs::copy(fixture.join("run.sh"), work.join("run.sh")).unwrap();
         git(&work, &["add", "."]);
         git(&work, &["commit", "-m", "init"]);

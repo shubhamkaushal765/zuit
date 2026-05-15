@@ -10,24 +10,26 @@ pub mod analyzer;
 pub mod error;
 pub mod install;
 pub mod manifest;
-pub mod parse_zuit;
 pub mod parse_sarif;
+pub mod parse_zuit;
 pub mod remove;
 pub mod store;
 pub mod update;
 
 pub use analyzer::PluginAnalyzer;
 pub use error::PluginError;
-pub use install::{install_git, install_git_in, install_local, install_local_in, looks_like_git_url};
+pub use install::{
+    install_git, install_git_in, install_local, install_local_in, looks_like_git_url,
+};
 pub use manifest::{OutputFormat, PluginManifest};
-pub use parse_zuit::parse_ndjson;
 pub use parse_sarif::parse_sarif;
+pub use parse_zuit::parse_ndjson;
 pub use remove::remove;
-pub use store::{list_installed, list_installed_in, plugins_dir, InstalledPlugin, PluginSource};
+pub use store::{InstalledPlugin, PluginSource, list_installed, list_installed_in, plugins_dir};
 pub use update::update;
 
-use zuit_core::Analyzer;
 use std::path::Path;
+use zuit_core::Analyzer;
 
 /// Discovers all installed user plugins and returns a vector of [`Analyzer`] trait objects.
 ///
@@ -42,7 +44,9 @@ pub fn discover_user_plugins() -> Vec<Box<dyn Analyzer>> {
     match store::plugins_dir() {
         Ok(dir) => discover_user_plugins_in(&dir),
         Err(err) => {
-            tracing::warn!("zuit-plugins: cannot resolve plugins directory: {err}; no plugins will be loaded");
+            tracing::warn!(
+                "zuit-plugins: cannot resolve plugins directory: {err}; no plugins will be loaded"
+            );
             Vec::new()
         }
     }
@@ -60,7 +64,9 @@ pub fn discover_user_plugins_in(dir: &Path) -> Vec<Box<dyn Analyzer>> {
     let installed = match store::list_installed_in(dir) {
         Ok(plugins) => plugins,
         Err(err) => {
-            tracing::warn!("zuit-plugins: cannot read plugins directory: {err}; no plugins will be loaded");
+            tracing::warn!(
+                "zuit-plugins: cannot read plugins directory: {err}; no plugins will be loaded"
+            );
             return Vec::new();
         }
     };
@@ -133,6 +139,10 @@ mod tests {
 
         // Discover plugins - should skip the broken one
         let result = discover_user_plugins_in(&plugins_root);
-        assert_eq!(result.len(), 1, "expected exactly one analyzer (broken plugin skipped)");
+        assert_eq!(
+            result.len(),
+            1,
+            "expected exactly one analyzer (broken plugin skipped)"
+        );
     }
 }

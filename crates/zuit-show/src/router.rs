@@ -257,9 +257,9 @@ fn dispatch(
             _ => json_err(404, "asset not found"),
         },
         ("GET", ["assets", "fonts", name]) => match *name {
-            "inter-400.woff2"  => (200, crate::assets::INTER_400.to_vec(),  "font/woff2"),
-            "inter-500.woff2"  => (200, crate::assets::INTER_500.to_vec(),  "font/woff2"),
-            "inter-600.woff2"  => (200, crate::assets::INTER_600.to_vec(),  "font/woff2"),
+            "inter-400.woff2" => (200, crate::assets::INTER_400.to_vec(), "font/woff2"),
+            "inter-500.woff2" => (200, crate::assets::INTER_500.to_vec(), "font/woff2"),
+            "inter-600.woff2" => (200, crate::assets::INTER_600.to_vec(), "font/woff2"),
             "jbmono-400.woff2" => (200, crate::assets::JBMONO_400.to_vec(), "font/woff2"),
             _ => json_err(404, "asset not found"),
         },
@@ -1492,7 +1492,8 @@ mod tests {
     #[test]
     fn assets_fonts_woff2_served() {
         let (_tmp, store) = fixture_store();
-        let (status, body, ct) = handle_for_test_with_ct(&store, "GET", "/assets/fonts/inter-400.woff2", "x");
+        let (status, body, ct) =
+            handle_for_test_with_ct(&store, "GET", "/assets/fonts/inter-400.woff2", "x");
         assert_eq!(status, 200);
         assert_eq!(ct, "font/woff2");
         assert_eq!(&body[..4], b"wOF2", "first 4 bytes must be wOF2 magic");
@@ -1501,7 +1502,8 @@ mod tests {
     #[test]
     fn assets_fonts_unknown_404() {
         let (_tmp, store) = fixture_store();
-        let (status, _body, _ct) = handle_for_test_with_ct(&store, "GET", "/assets/fonts/nope.woff2", "x");
+        let (status, _body, _ct) =
+            handle_for_test_with_ct(&store, "GET", "/assets/fonts/nope.woff2", "x");
         assert_eq!(status, 404);
     }
 

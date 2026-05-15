@@ -1,7 +1,7 @@
 mod common;
 
-use zuit_report::render_sarif;
 use serde_json::Value;
+use zuit_report::render_sarif;
 
 /// Snapshot test: full SARIF output for the canonical fake report.
 ///
@@ -45,10 +45,7 @@ fn sarif_structure_is_valid() {
 
     // tool.driver block.
     let driver = &run["tool"]["driver"];
-    assert_eq!(
-        driver["name"], "zuit",
-        "tool.driver.name must be 'zuit'"
-    );
+    assert_eq!(driver["name"], "zuit", "tool.driver.name must be 'zuit'");
     assert!(
         driver["version"].is_string(),
         "tool.driver.version must be a string"
@@ -236,10 +233,10 @@ fn sarif_output_is_deterministic() {
 /// Empty report: must still produce valid SARIF with empty arrays.
 #[test]
 fn sarif_empty_report() {
+    use std::collections::BTreeMap;
     use zuit_core::analyzer::Dimension;
     use zuit_core::engine::{Report, RunStats};
     use zuit_core::score::aggregate_dimension_score;
-    use std::collections::BTreeMap;
 
     let mut scores = BTreeMap::new();
     for dim in [

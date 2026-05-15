@@ -193,10 +193,7 @@ mod tests {
     fn parse_invalid_returns_syntax_error() {
         let src = make_source("fn x(");
         let result = RustLanguage.parse(src);
-        assert!(matches!(
-            result,
-            Err(zuit_core::ParseError::Syntax { .. })
-        ));
+        assert!(matches!(result, Err(zuit_core::ParseError::Syntax { .. })));
     }
 
     #[test]

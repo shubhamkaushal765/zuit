@@ -138,8 +138,8 @@ impl zuit_core::Analyzer for Health001SingleAuthor {
 mod tests {
     use super::*;
     use crate::analyzers::health::git_log::{Commit, GitLog};
-    use zuit_core::{Analyzer, Config, Project};
     use time::OffsetDateTime;
+    use zuit_core::{Analyzer, Config, Project};
 
     fn make_analyzer() -> Health001SingleAuthor {
         Health001SingleAuthor::default()

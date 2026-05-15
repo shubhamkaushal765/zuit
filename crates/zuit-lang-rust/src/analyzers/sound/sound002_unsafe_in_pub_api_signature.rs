@@ -8,11 +8,11 @@
 //! | Default severity | High |
 //! | Languages | Rust only |
 
+use smallvec::smallvec;
 use zuit_core::{
     AnalysisContext, AnalyzerId, Dimension, Finding, LanguageId, Location, ParsedFile, RuleMeta,
     Severity, SupportedLanguages,
 };
-use smallvec::smallvec;
 
 use crate::try_rust_ast;
 
@@ -95,8 +95,8 @@ impl zuit_core::Analyzer for Sound002UnsafeInPubApiSignature {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use zuit_core::{Analyzer, Config, SourceFile};
     use std::sync::Arc;
+    use zuit_core::{Analyzer, Config, SourceFile};
 
     fn analyze(code: &str) -> Vec<Finding> {
         let source = Arc::new(SourceFile::new("test.rs", code.as_bytes().to_vec()));

@@ -268,8 +268,8 @@ fn has_breaking_changes(baseline: &PublicApi, head: &PublicApi) -> bool {
 mod tests {
     use super::*;
     use crate::analyzers::api::{FunctionSig, PublicApi};
-    use zuit_core::{Analyzer, Config, Project};
     use std::io::Write as _;
+    use zuit_core::{Analyzer, Config, Project};
 
     fn make_project_with_version(py_src: &str, version: &str) -> (tempfile::TempDir, Project) {
         let dir = tempfile::TempDir::new().unwrap();

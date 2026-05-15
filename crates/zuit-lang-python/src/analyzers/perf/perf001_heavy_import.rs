@@ -12,13 +12,13 @@
 //! **Dimension:** `Custom("performance")`.
 //! **Severity:** Medium.
 
+use rustpython_parser::ast::{Ranged, Stmt};
+use smallvec::smallvec;
 use zuit_core::{
     AnalysisContext, AnalyzerId, AnalyzerKind, Dimension, Finding, LanguageId, Location,
     ParsedFile, RuleMeta, Severity, SupportedLanguages,
     span::{ByteOffset, Span},
 };
-use rustpython_parser::ast::{Ranged, Stmt};
-use smallvec::smallvec;
 
 const RULE_ID: &str = "PERF001-heavy-import";
 
@@ -167,8 +167,8 @@ impl zuit_core::Analyzer for Perf001HeavyImport {
 mod tests {
     use super::*;
     use crate::parse::PythonLanguage;
-    use zuit_core::{Analyzer, Config, Language, SourceFile};
     use std::sync::Arc;
+    use zuit_core::{Analyzer, Config, Language, SourceFile};
 
     fn analyze(src: &str) -> Vec<Finding> {
         let source = Arc::new(SourceFile::new("lib.py", src.as_bytes().to_vec()));

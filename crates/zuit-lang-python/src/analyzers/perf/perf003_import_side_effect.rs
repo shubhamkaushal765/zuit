@@ -21,13 +21,13 @@
 //! **Dimension:** `Custom("performance")`.
 //! **Severity:** Medium.
 
+use rustpython_parser::ast::{Constant, Expr, Ranged, Stmt};
+use smallvec::smallvec;
 use zuit_core::{
     AnalysisContext, AnalyzerId, AnalyzerKind, Dimension, Finding, LanguageId, Location,
     ParsedFile, Project, RuleMeta, Severity, SupportedLanguages,
     span::{ByteOffset, Span},
 };
-use rustpython_parser::ast::{Constant, Expr, Ranged, Stmt};
-use smallvec::smallvec;
 
 const RULE_ID: &str = "PERF003-import-side-effect";
 
@@ -212,8 +212,8 @@ fn is_simple_constant(expr: &Expr) -> bool {
 mod tests {
     use super::*;
     use crate::parse::PythonLanguage;
-    use zuit_core::{Analyzer, Config, Language, SourceFile};
     use std::sync::Arc;
+    use zuit_core::{Analyzer, Config, Language, SourceFile};
 
     fn analyze(src: &str) -> Vec<Finding> {
         let source = Arc::new(SourceFile::new("lib.py", src.as_bytes().to_vec()));
@@ -301,8 +301,8 @@ mod tests {
     // 5. Carve-out test: project_has_entry_point_scripts returns true when scripts present
     #[test]
     fn perf003_carveout_when_entry_point_present() {
-        use zuit_core::Project;
         use std::io::Write as _;
+        use zuit_core::Project;
 
         let dir = tempfile::TempDir::new().unwrap();
         let toml = "[project]\nname = \"app\"\nversion = \"1.0\"\n\n[project.scripts]\nmycli = \"myapp.cli:main\"\n";
@@ -320,8 +320,8 @@ mod tests {
     // Negative carve-out: no scripts in pyproject → returns false
     #[test]
     fn perf003_no_entry_points_carveout_inactive() {
-        use zuit_core::Project;
         use std::io::Write as _;
+        use zuit_core::Project;
 
         let dir = tempfile::TempDir::new().unwrap();
         let toml = "[project]\nname = \"lib\"\nversion = \"1.0\"\n";

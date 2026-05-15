@@ -141,13 +141,7 @@ pub fn parse_ndjson(
 
         match serde_json::from_slice::<RawFinding>(raw_line) {
             Ok(raw) => {
-                let finding = convert_raw(
-                    raw,
-                    &analyzer_id,
-                    project,
-                    project_root,
-                    rule_id_prefix,
-                );
+                let finding = convert_raw(raw, &analyzer_id, project, project_root, rule_id_prefix);
                 findings.push(finding);
             }
             Err(err) => {
@@ -196,8 +190,7 @@ fn convert_raw(
 
     // ── span resolution ───────────────────────────────────────────────────
     let col = raw.col.unwrap_or(1);
-    let (span, start_lc, end_lc) =
-        resolve_span(&raw, &file_path, col, project, project_root);
+    let (span, start_lc, end_lc) = resolve_span(&raw, &file_path, col, project, project_root);
 
     Finding {
         analyzer: analyzer_id.clone(),
@@ -233,9 +226,7 @@ fn resolve_span(
     project: &Project,
     project_root: &Path,
 ) -> (Span, LineCol, LineCol) {
-    if let (Some(start_off), Some(end_off)) =
-        (raw.byte_offset_start, raw.byte_offset_end)
-    {
+    if let (Some(start_off), Some(end_off)) = (raw.byte_offset_start, raw.byte_offset_end) {
         // Byte offsets are authoritative.
         let span = Span::new(ByteOffset(start_off), ByteOffset(end_off));
         let start_lc = LineCol::new(raw.line.max(1), col.max(1));
@@ -245,14 +236,7 @@ fn resolve_span(
         (span, start_lc, end_lc)
     } else {
         // Derive byte offsets from source via compute_span.
-        compute_span(
-            project,
-            project_root,
-            file_path,
-            &raw.file,
-            raw.line,
-            col,
-        )
+        compute_span(project, project_root, file_path, &raw.file, raw.line, col)
     }
 }
 
@@ -263,7 +247,9 @@ fn resolve_span(
 /// relative-to-root form.  Otherwise the raw string is used as-is.
 fn canonicalise_path(raw: &str, project_root: &Path) -> PathBuf {
     let p = Path::new(raw);
-    if p.is_absolute() && let Ok(rel) = p.strip_prefix(project_root) {
+    if p.is_absolute()
+        && let Ok(rel) = p.strip_prefix(project_root)
+    {
         return rel.to_path_buf();
     }
     PathBuf::from(raw)
@@ -424,7 +410,13 @@ mod tests {
         let f_already = parse_ndjson(already_prefixed, &project, &root, "acme-zig", "ZIG/");
         let f_bare = parse_ndjson(bare, &project, &root, "acme-zig", "ZIG/");
 
-        assert_eq!(f_already[0].rule_id, "ZIG/leak", "pre-prefixed rule_id must stay unchanged");
-        assert_eq!(f_bare[0].rule_id, "ZIG/leak", "bare rule_id must get the prefix prepended");
+        assert_eq!(
+            f_already[0].rule_id, "ZIG/leak",
+            "pre-prefixed rule_id must stay unchanged"
+        );
+        assert_eq!(
+            f_bare[0].rule_id, "ZIG/leak",
+            "bare rule_id must get the prefix prepended"
+        );
     }
 }

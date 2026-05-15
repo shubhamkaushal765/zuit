@@ -123,8 +123,8 @@ impl zuit_core::Analyzer for Pkg010WorkspaceInheritanceBroken {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use zuit_core::{Analyzer, Config, Project};
     use std::io::Write as _;
+    use zuit_core::{Analyzer, Config, Project};
 
     fn run(toml_content: &str) -> Vec<Finding> {
         let dir = tempfile::TempDir::new().unwrap();
@@ -176,8 +176,7 @@ mod tests {
 
     #[test]
     fn pkg010_suppression_directive_works() {
-        let findings =
-            run("# zuit: ignore PKG010\n[package]\nname = \"x\"\nversion = \"1.0\"\n");
+        let findings = run("# zuit: ignore PKG010\n[package]\nname = \"x\"\nversion = \"1.0\"\n");
         assert!(findings.is_empty());
     }
 }

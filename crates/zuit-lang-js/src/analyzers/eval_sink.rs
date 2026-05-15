@@ -42,11 +42,11 @@
 //! - `arr.map(eval)` — passing `eval` as a *reference* (not calling it) is not
 //!   flagged. Tracking references is out of scope for v1.
 
+use smallvec::smallvec;
 use zuit_core::{
     AnalysisContext, AnalyzerId, Dimension, Finding, LanguageId, Location, ParsedFile, RuleMeta,
     Severity, SupportedLanguages,
 };
-use smallvec::smallvec;
 
 /// The stable rule ID for this analyzer.
 const RULE_ID: &str = "SEC002-eval-sink";
@@ -256,8 +256,8 @@ fn suggestion_for_dom_sink(kind: &crate::native_ast::DomSinkKind) -> String {
 mod tests {
     use super::*;
     use crate::parse::parse as js_parse;
-    use zuit_core::{Analyzer, Config, LanguageId, SourceFile, span::ByteOffset};
     use std::sync::Arc;
+    use zuit_core::{Analyzer, Config, LanguageId, SourceFile, span::ByteOffset};
 
     fn analyze(path: &str, src: &str) -> Vec<Finding> {
         let source = Arc::new(SourceFile::new(path, src.as_bytes().to_vec()));

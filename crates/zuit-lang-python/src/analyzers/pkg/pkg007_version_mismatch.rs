@@ -203,10 +203,10 @@ fn extract_version(source: &str) -> Option<(String, usize)> {
 mod tests {
     use super::*;
     use crate::parse::PythonLanguage;
-    use zuit_core::SourceFile;
-    use zuit_core::{Analyzer, Config, Language, Project};
     use std::io::Write as _;
     use std::sync::Arc;
+    use zuit_core::SourceFile;
+    use zuit_core::{Analyzer, Config, Language, Project};
 
     fn run(pyproject_content: &str, init_py_content: Option<&str>) -> Vec<Finding> {
         let dir = tempfile::TempDir::new().unwrap();

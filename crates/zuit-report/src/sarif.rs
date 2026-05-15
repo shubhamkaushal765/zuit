@@ -48,10 +48,10 @@
 
 use std::collections::BTreeMap;
 
+use serde_json::{Value, json};
 use zuit_core::analyzer::Severity;
 use zuit_core::engine::Report;
 use zuit_core::finding::Finding;
-use serde_json::{Value, json};
 
 use crate::ReportError;
 
@@ -260,13 +260,13 @@ pub fn render_sarif(report: &Report) -> Result<String, ReportError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::BTreeMap;
+    use std::path::PathBuf;
     use zuit_core::analyzer::{Dimension, Severity};
     use zuit_core::engine::{Report, RunStats};
     use zuit_core::id::AnalyzerId;
     use zuit_core::score::aggregate_dimension_score;
     use zuit_core::span::{ByteOffset, LineCol, Location, Span};
-    use std::collections::BTreeMap;
-    use std::path::PathBuf;
 
     fn empty_report() -> Report {
         let mut scores = BTreeMap::new();

@@ -122,8 +122,8 @@ impl zuit_core::Analyzer for Chain001NoLockfile {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use zuit_core::{Analyzer, Config, Project};
     use std::io::Write as _;
+    use zuit_core::{Analyzer, Config, Project};
 
     fn run(root: &std::path::Path) -> Vec<Finding> {
         crate::manifest::clear_cache();

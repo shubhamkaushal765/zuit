@@ -37,12 +37,12 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 
+use serde::Deserialize;
 use zuit_core::{
     AnalysisContext, AnalyzerId, AnalyzerKind, Dimension, Finding, Location, Project, RuleMeta,
     Severity, SupportedLanguages,
     span::{ByteOffset, LineCol, Span},
 };
-use serde::Deserialize;
 
 use crate::error::JsError;
 

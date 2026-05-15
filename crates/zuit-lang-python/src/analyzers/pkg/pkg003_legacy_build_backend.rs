@@ -97,8 +97,8 @@ impl zuit_core::Analyzer for Pkg003LegacyBuildBackend {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use zuit_core::{Analyzer, Config, Project};
     use std::io::Write as _;
+    use zuit_core::{Analyzer, Config, Project};
 
     fn run_with_files(has_setup_py: bool, has_pyproject: bool) -> Vec<Finding> {
         let dir = tempfile::TempDir::new().unwrap();

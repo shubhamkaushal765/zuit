@@ -22,9 +22,9 @@
 
 use std::collections::BTreeMap;
 
+use serde::Serialize;
 use zuit_core::analyzer::Dimension;
 use zuit_core::engine::Report;
-use serde::Serialize;
 
 use crate::ReportError;
 
@@ -173,13 +173,13 @@ pub fn render_json(report: &Report) -> Result<String, ReportError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use zuit_core::engine::RunStats;
     use serde_json::Value;
+    use zuit_core::engine::RunStats;
 
     fn empty_report() -> Report {
+        use std::collections::BTreeMap;
         use zuit_core::analyzer::Dimension;
         use zuit_core::score::aggregate_dimension_score;
-        use std::collections::BTreeMap;
 
         let mut scores = BTreeMap::new();
         for dim in [
@@ -293,9 +293,9 @@ mod tests {
 
     #[test]
     fn grades_values_match_score_to_grade() {
+        use std::collections::BTreeMap;
         use zuit_core::analyzer::Dimension;
         use zuit_core::score::Score;
-        use std::collections::BTreeMap;
 
         let mut scores: BTreeMap<Dimension, Score> = BTreeMap::new();
         scores.insert(Dimension::Security, Score(92.0));
