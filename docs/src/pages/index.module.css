@@ -1,0 +1,278 @@
+/* Homepage CSS module — steel-blue palette, restrained layout */
+
+/* ── Hero ── */
+.hero {
+  background: linear-gradient(
+    160deg,
+    var(--zuit-blue-900) 0%,
+    var(--zuit-blue-600) 60%,
+    var(--zuit-blue-800) 100%
+  );
+  padding: 4rem 0 3.5rem;
+  color: var(--cl-text-inverse);
+}
+
+.heroInner {
+  display: flex;
+  align-items: center;
+  gap: 3rem;
+}
+
+.heroCopy {
+  flex: 1 1 380px;
+  min-width: 0;
+}
+
+.heroTitle {
+  font-size: 3rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--cl-text-inverse);
+  margin-bottom: 0.75rem;
+  line-height: 1.1;
+}
+
+.heroTagline {
+  font-size: 1.15rem;
+  /* Light tint of the hero blue for tagline copy on the gradient — AA on the
+     mid-gradient stop (--zuit-blue-600). */
+  color: var(--zuit-blue-200);
+  margin-bottom: 2rem;
+  line-height: 1.55;
+}
+
+.heroButtons {
+  display: flex;
+  gap: 0.875rem;
+  flex-wrap: wrap;
+}
+
+/* Hero primary CTA — uses the site's white-on-blue primary token so it matches
+   the rest of the site rather than the previous off-brand amber. */
+.btnPrimary {
+  background: var(--cl-text-inverse);
+  border: 1px solid var(--cl-text-inverse);
+  color: var(--cl-accent-primary);
+  font-weight: 600;
+}
+
+.btnPrimary:hover {
+  background: var(--zuit-blue-50);
+  border-color: var(--zuit-blue-50);
+  color: var(--cl-accent-primary-hover);
+  text-decoration: none;
+}
+
+.btnOutline {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  color: var(--cl-text-inverse);
+  font-weight: 500;
+}
+
+.btnOutline:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.7);
+  color: var(--cl-text-inverse);
+  text-decoration: none;
+}
+
+.heroVisual {
+  flex: 1 1 340px;
+  min-width: 0;
+}
+
+.heroDiagram {
+  display: block;
+  max-width: 100%;
+}
+
+/* ── Sections ── */
+.section {
+  padding: 4rem 0;
+}
+
+.sectionAlt {
+  background: var(--ifm-color-emphasis-100);
+}
+
+.sectionHeading {
+  margin-bottom: 0.5rem;
+}
+
+.sectionLead {
+  color: var(--ifm-color-emphasis-700);
+  font-size: 1rem;
+  margin-bottom: 2rem;
+  max-width: 640px;
+}
+
+/* ── Dimension cards ── */
+.cardGrid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-top: 0.5rem;
+}
+
+.card {
+  flex: 1 1 200px;
+  min-width: 200px;
+  padding: 1.25rem 1.25rem 1.25rem 1.5rem;
+  border: 1px solid var(--ifm-color-emphasis-200);
+  border-radius: 8px;
+  background: var(--ifm-background-color);
+  color: inherit;
+  text-decoration: none;
+  position: relative;
+  overflow: hidden;
+  transition: border-color 0.15s ease, transform 0.15s ease;
+}
+
+.card:hover {
+  border-color: var(--ifm-color-primary);
+  text-decoration: none;
+  transform: translateY(-2px);
+}
+
+/* Left-side colored stripe */
+.cardStripe {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 4px;
+  height: 100%;
+  border-radius: 8px 0 0 8px;
+}
+
+.cardIcon {
+  display: inline-flex;
+  margin-bottom: 0.5rem;
+}
+
+.cardTitle {
+  margin-bottom: 0.4rem;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.cardDesc {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--ifm-color-emphasis-700);
+  line-height: 1.5;
+}
+
+/* ── Pipeline at a glance ── */
+.pipelineWrap {
+  overflow-x: auto;
+  padding-bottom: 0.5rem;
+}
+
+.pipelineSvg {
+  display: block;
+  max-width: 640px;
+  min-width: 320px;
+  width: 100%;
+  height: auto;
+}
+
+/* ── Two-axis extensibility ── */
+.extGrid {
+  display: flex;
+  gap: 3rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.extDiagram {
+  flex: 0 0 300px;
+}
+
+.extSvg {
+  display: block;
+  width: 100%;
+  max-width: 300px;
+  height: auto;
+}
+
+.extCopy {
+  flex: 1 1 280px;
+  min-width: 0;
+}
+
+.extCopy p {
+  color: var(--ifm-color-emphasis-700);
+  line-height: 1.7;
+  margin-bottom: 1rem;
+}
+
+/* ── Quick start ── */
+.quickStartCard {
+  border: 1px solid var(--ifm-color-emphasis-200);
+  border-radius: 8px;
+  background: var(--ifm-background-color);
+  padding: 1.5rem;
+  max-width: 640px;
+}
+
+.code {
+  background: var(--ifm-pre-background);
+  border: 1px solid var(--ifm-color-emphasis-200);
+  border-radius: 6px;
+  padding: 1rem;
+  overflow-x: auto;
+  font-size: 0.9rem;
+  line-height: 1.6;
+  margin: 0 0 1rem 0;
+}
+
+.quickStartNote {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--ifm-color-emphasis-700);
+}
+
+/* ── Mobile responsive ── */
+@media screen and (max-width: 768px) {
+  .heroInner {
+    flex-direction: column;
+    gap: 2rem;
+  }
+
+  .heroTitle {
+    font-size: 2.2rem;
+  }
+
+  .heroVisual {
+    width: 100%;
+  }
+
+  .extGrid {
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+
+  .extDiagram {
+    flex: 0 0 auto;
+    width: 100%;
+  }
+}
+
+@media screen and (max-width: 480px) {
+  .hero {
+    padding: 2.5rem 0 2rem;
+  }
+
+  .heroTitle {
+    font-size: 1.9rem;
+  }
+
+  .section {
+    padding: 2.5rem 0;
+  }
+
+  .cardGrid {
+    flex-direction: column;
+  }
+}

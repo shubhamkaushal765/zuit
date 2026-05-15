@@ -1,0 +1,812 @@
+/**
+ * zuit documentation — global theme
+ *
+ * 60-30-10 color rule
+ * ───────────────────
+ *  60% dominant   — page background, reading surface, content area
+ *                   tokens: --cl-bg-*
+ *  30% secondary  — navbar, sidebar, TOC, code blocks, cards, panels
+ *                   tokens: --cl-surface-*, --cl-border-*
+ *  10% accent     — links, primary buttons, active states, focus rings, CTAs
+ *                   tokens: --cl-accent-*, --cl-text-link*
+ *
+ * Token naming: --cl-{layer}-{role}-{variant}
+ *
+ * Token hierarchy:
+ *   raw ramps (--zuit-blue-N, --zuit-amber-N, --zuit-slate-N)
+ *     → semantic tokens (--cl-*)
+ *       → Infima/Docusaurus variables (--ifm-*)
+ *
+ * Components MUST consume only --cl-* or --ifm-* tokens, never raw hex.
+ *
+ * WCAG AA verified by: node scripts/verify-contrast.mjs
+ */
+
+/* Inter is loaded via <link rel="preconnect"> + <link rel="stylesheet"> in
+   docusaurus.config.ts headTags — preconnect runs in parallel with HTML
+   parsing rather than blocking CSSOM the way an @import does. */
+
+/* ─────────────────────────────────────────────────────────────────────────── */
+/* Light mode (default)                                                        */
+/* ─────────────────────────────────────────────────────────────────────────── */
+
+:root {
+  /* ── Brand tokens — raw ramps, do not consume directly in components ── */
+
+  /* Steel-blue ramp */
+  --zuit-blue-50:  #eef4ff;
+  --zuit-blue-100: #d9e8ff;
+  --zuit-blue-200: #b3d1ff;
+  --zuit-blue-300: #7aacf7;
+  --zuit-blue-400: #4d88e8;
+  --zuit-blue-500: #2860c8;
+  --zuit-blue-600: #1e4d8c;
+  --zuit-blue-700: #1a4480;
+  --zuit-blue-800: #163c6e;
+  --zuit-blue-900: #102d54;
+
+  /* Amber accent ramp */
+  --zuit-amber-50:  #fffbea;
+  --zuit-amber-100: #fef3c7;
+  --zuit-amber-200: #fde68a;
+  --zuit-amber-300: #f4c04a;
+  --zuit-amber-400: #e0a93a;
+  --zuit-amber-500: #c8881a;
+  --zuit-amber-600: #9a6200;
+  --zuit-amber-700: #7c4f00;
+  --zuit-amber-800: #5e3b00;
+  --zuit-amber-900: #3d2700;
+
+  /* Slate neutral ramp */
+  --zuit-slate-50:  #f7f9fc;
+  --zuit-slate-100: #eef2f8;
+  --zuit-slate-200: #dbe2ec;
+  --zuit-slate-300: #bec8d9;
+  --zuit-slate-400: #8b949e;
+  --zuit-slate-500: #6b7890;
+  --zuit-slate-600: #4b5563;
+  --zuit-slate-700: #374151;
+  --zuit-slate-800: #1f2937;
+  --zuit-slate-900: #111827;
+
+  /* ── 60% — dominant surfaces ── */
+  --cl-bg-canvas:  #f7f9fc;   /* very-slightly-tinted off-white — outer wrap */
+  --cl-bg-default: #ffffff;   /* main content surface */
+  --cl-bg-subtle:  #eef2f8;   /* subtle tint for hover/selected backgrounds */
+
+  /* ── 30% — secondary surfaces ── */
+  --cl-surface-nav:      #ffffff;
+  --cl-surface-sidebar:  #f4f7fb;
+  --cl-surface-card:     #eef2f8;
+  --cl-surface-code:     #f1f4f9;
+  --cl-surface-elevated: #ffffff;
+  --cl-border-default:   #dbe2ec;
+  --cl-border-muted:     #eef2f8;
+
+  /* ── 10% — accent ── */
+  --cl-accent-primary:        #1a4480;  /* AA-verified on white (9.62:1) */
+  --cl-accent-primary-hover:  #163c6e;
+  --cl-accent-secondary:      #9a6200;  /* amber, AA-verified on white */
+  --cl-accent-secondary-hover:#7c4f00;
+  --cl-focus-ring:            #1a4480;
+
+  /* Dimension sub-palette — used by dimension-coded UI (homepage cards,
+     rule-page top band). UI-element 3:1 minimum; values mirror PALETTE
+     entries in scripts/verify-contrast.mjs. */
+  --cl-dimension-maintainability: #0369a1;
+  --cl-dimension-security:        #b91c1c;
+  --cl-dimension-complexity:      #6d28d9;
+  --cl-dimension-documentation:   #047857;
+  --cl-dimension-test:            #b45309;
+  --cl-rule-band:                 var(--cl-accent-primary);
+
+  /* ── Typography ── */
+  --cl-text-primary:   #111827;   /* 17.7:1 on white */
+  --cl-text-secondary: #374151;   /* ~12:1 on white */
+  --cl-text-muted:     #4b5563;   /* 7.6:1 on white — AA pass */
+  --cl-text-inverse:   #ffffff;
+  --cl-text-link:      #1a4480;
+  --cl-text-link-hover:#163c6e;
+
+  /* ── Semantic state tokens — admonitions ── */
+  --cl-state-info-bg:      #eff6ff;
+  --cl-state-info-border:  #2860c8;
+  --cl-state-info-text:    #1a4480;
+
+  --cl-state-tip-bg:       #f0fdf4;
+  --cl-state-tip-border:   #16a34a;
+  --cl-state-tip-text:     #14532d;
+
+  --cl-state-note-bg:      #f8fafc;
+  --cl-state-note-border:  #6b7890;
+  --cl-state-note-text:    #374151;
+
+  --cl-state-caution-bg:   #fffbea;
+  --cl-state-caution-border: #c8881a;
+  --cl-state-caution-text: #7c4f00;
+
+  --cl-state-warning-bg:   #fef2f2;
+  --cl-state-warning-border: #dc2626;
+  --cl-state-warning-text: #7f1d1d;
+
+  --cl-state-danger-bg:    #fef2f2;
+  --cl-state-danger-border: #991b1b;
+  --cl-state-danger-text:  #7f1d1d;
+
+  /* ── Code syntax (Prism overrides) ── */
+  --cl-code-bg:     #f1f4f9;
+  --cl-code-border: #dbe2ec;
+  --cl-code-text:   #111827;
+
+  --cl-syntax-keyword:  #1a4480;
+  --cl-syntax-string:   #16a34a;
+  --cl-syntax-number:   #9a6200;
+  --cl-syntax-comment:  #6b7890;
+  --cl-syntax-function: #7c3aed;
+  --cl-syntax-type:     #0369a1;
+  --cl-syntax-operator: #374151;
+  --cl-syntax-variable: #1f2937;
+
+  /* ── Infima / Docusaurus variables mapped from semantic tokens ── */
+
+  /* Primary color ladder */
+  --ifm-color-primary:          #1a4480;
+  --ifm-color-primary-dark:     #163c6e;
+  --ifm-color-primary-darker:   #123460;
+  --ifm-color-primary-darkest:  #0e2a50;
+  --ifm-color-primary-light:    #1e4d8c;
+  --ifm-color-primary-lighter:  #2860aa;
+  --ifm-color-primary-lightest: #3472bf;
+
+  /* Backgrounds */
+  --ifm-background-color:         var(--cl-bg-default);
+  --ifm-background-surface-color: var(--cl-surface-sidebar);
+
+  /* Emphasis scale (used by Infima internally) */
+  --ifm-color-emphasis-100: var(--zuit-slate-100);
+  --ifm-color-emphasis-200: var(--zuit-slate-200);
+  --ifm-color-emphasis-300: var(--zuit-slate-300);
+  --ifm-color-emphasis-400: var(--zuit-slate-400);
+  --ifm-color-emphasis-500: var(--zuit-slate-500);
+  --ifm-color-emphasis-600: var(--zuit-slate-600);
+  --ifm-color-emphasis-700: var(--zuit-slate-700);
+  --ifm-color-emphasis-800: var(--zuit-slate-800);
+  --ifm-color-emphasis-900: var(--zuit-slate-900);
+
+  /* Navbar */
+  --ifm-navbar-background-color:  var(--cl-surface-nav);
+  --ifm-navbar-shadow:            0 1px 0 var(--cl-border-default);
+
+  /* Footer */
+  --ifm-footer-background-color:  var(--zuit-slate-900);
+
+  /* Sidebar menu */
+  --ifm-menu-color:                    var(--cl-text-secondary);
+  --ifm-menu-color-active:             var(--cl-accent-primary);
+  --ifm-menu-color-background-active:  var(--cl-bg-subtle);
+  --ifm-menu-color-background-hover:   var(--cl-bg-subtle);
+
+  /* Links */
+  --ifm-link-color:       var(--cl-text-link);
+  --ifm-link-hover-color: var(--cl-text-link-hover);
+
+  /* Code */
+  --ifm-code-background:  var(--cl-code-bg);
+  --ifm-pre-background:   var(--cl-code-bg);
+  --ifm-code-border-radius: 4px;
+  --ifm-pre-border-radius: 6px;
+
+  /* Link decoration */
+  --ifm-link-decoration:       none;
+  --ifm-link-hover-decoration: underline;
+
+  /* TOC */
+  --ifm-toc-border-color: var(--cl-border-default);
+
+  /* Blockquote */
+  --ifm-blockquote-color: var(--cl-text-secondary);
+
+  /* Table */
+  --ifm-table-stripe-background: var(--cl-bg-canvas);
+
+  /* Semantic state colors */
+  --ifm-color-success: #16a34a;
+  --ifm-color-info:    #2860c8;
+  --ifm-color-warning: #c8881a;
+  --ifm-color-danger:  #dc2626;
+
+  /* Highlighted code line */
+  --docusaurus-highlighted-code-line-bg: rgba(26, 68, 128, 0.08);
+
+  /* Tabs */
+  --ifm-tabs-color:               var(--cl-text-secondary);
+  --ifm-tabs-color-active:        var(--cl-accent-primary);
+  --ifm-tabs-color-active-border: var(--cl-accent-primary);
+
+  /* ── Typography ── */
+  --ifm-font-family-base:
+    "Inter", system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --ifm-font-family-monospace:
+    ui-monospace, "SFMono-Regular", Menlo, Monaco, Consolas,
+    "Liberation Mono", "Courier New", monospace;
+
+  --ifm-font-size-base:    1rem;
+  --ifm-line-height-base:  1.65;  /* long-read optimized */
+
+  --ifm-heading-font-weight: 700;
+  --ifm-h1-font-size:        2.2rem;
+  --ifm-h2-font-size:        1.6rem;
+  --ifm-h3-font-size:        1.2rem;
+  --ifm-heading-line-height: 1.25;
+
+  --ifm-code-font-size: 0.93em;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────── */
+/* Dark mode                                                                   */
+/* ─────────────────────────────────────────────────────────────────────────── */
+
+[data-theme='dark'] {
+  /* ── 60% — dominant surfaces ── */
+  --cl-bg-canvas:  #0a0e15;
+  --cl-bg-default: #0d1117;
+  --cl-bg-subtle:  #111827;
+
+  /* ── 30% — secondary surfaces ── */
+  --cl-surface-nav:      #0d1117;
+  --cl-surface-sidebar:  #11161f;
+  --cl-surface-card:     #161c28;
+  --cl-surface-code:     #0f141d;
+  --cl-surface-elevated: #161c28;
+  --cl-border-default:   #222a38;
+  --cl-border-muted:     #1a2030;
+
+  /* ── 10% — accent ── */
+  --cl-accent-primary:        #7aa7f5;  /* AA-verified on #0d1117 (7.82:1) */
+  --cl-accent-primary-hover:  #9bbff8;
+  --cl-accent-secondary:      #e0a93a;  /* amber lifted for AA on dark */
+  --cl-accent-secondary-hover:#f4c04a;
+  --cl-focus-ring:            #7aa7f5;
+
+  --cl-dimension-maintainability: #38bdf8;
+  --cl-dimension-security:        #f87171;
+  --cl-dimension-complexity:      #c4b5fd;
+  --cl-dimension-documentation:   #6ee7b7;
+  --cl-dimension-test:            #fcd34d;
+  --cl-rule-band:                 var(--cl-accent-primary);
+
+  /* ── Typography ── */
+  --cl-text-primary:   #e6edf3;   /* 16:1 on #0d1117 */
+  --cl-text-secondary: #b0bec5;
+  --cl-text-muted:     #8b949e;   /* 6.15:1 on #0d1117 — AA pass */
+  --cl-text-inverse:   #0d1117;
+  --cl-text-link:      #7aa7f5;
+  --cl-text-link-hover:#9bbff8;
+
+  /* ── Semantic state tokens — admonitions ── */
+  --cl-state-info-bg:       #0d1e35;
+  --cl-state-info-border:   #4d88e8;
+  --cl-state-info-text:     #7aa7f5;
+
+  --cl-state-tip-bg:        #0a1f14;
+  --cl-state-tip-border:    #4ade80;
+  --cl-state-tip-text:      #86efac;
+
+  --cl-state-note-bg:       #111827;
+  --cl-state-note-border:   #6b7890;
+  --cl-state-note-text:     #b0bec5;
+
+  --cl-state-caution-bg:    #1f1400;
+  --cl-state-caution-border:#e0a93a;
+  --cl-state-caution-text:  #f4c04a;
+
+  --cl-state-warning-bg:    #1f0808;
+  --cl-state-warning-border:#f87171;
+  --cl-state-warning-text:  #fca5a5;
+
+  --cl-state-danger-bg:     #1f0808;
+  --cl-state-danger-border: #ef4444;
+  --cl-state-danger-text:   #fca5a5;
+
+  /* ── Code syntax (Prism overrides) ── */
+  --cl-code-bg:     #0f141d;
+  --cl-code-border: #222a38;
+  --cl-code-text:   #e6edf3;
+
+  --cl-syntax-keyword:  #7aa7f5;
+  --cl-syntax-string:   #86efac;
+  --cl-syntax-number:   #f4c04a;
+  --cl-syntax-comment:  #6b7890;
+  --cl-syntax-function: #c4b5fd;
+  --cl-syntax-type:     #67c3f3;
+  --cl-syntax-operator: #b0bec5;
+  --cl-syntax-variable: #e6edf3;
+
+  /* ── Infima / Docusaurus variables ── */
+
+  --ifm-color-primary:          #7aa7f5;
+  --ifm-color-primary-dark:     #4d88e8;
+  --ifm-color-primary-darker:   #3e73df;
+  --ifm-color-primary-darkest:  #2860c8;
+  --ifm-color-primary-light:    #9bbff8;
+  --ifm-color-primary-lighter:  #aecffa;
+  --ifm-color-primary-lightest: #c6dffc;
+
+  --ifm-background-color:         var(--cl-bg-default);
+  --ifm-background-surface-color: var(--cl-surface-sidebar);
+
+  --ifm-color-emphasis-100: #161c28;
+  --ifm-color-emphasis-200: #1a2436;
+  --ifm-color-emphasis-300: #222a38;
+  --ifm-color-emphasis-400: #2d3748;
+  --ifm-color-emphasis-500: #4b5563;
+  --ifm-color-emphasis-600: #6b7890;
+  --ifm-color-emphasis-700: #8b949e;
+  --ifm-color-emphasis-800: #b0bec5;
+  --ifm-color-emphasis-900: #e6edf3;
+
+  --ifm-navbar-background-color:  var(--cl-surface-nav);
+  --ifm-navbar-shadow:            0 1px 0 var(--cl-border-default);
+
+  --ifm-footer-background-color:  #0a0e15;
+
+  --ifm-menu-color:                    var(--cl-text-secondary);
+  --ifm-menu-color-active:             var(--cl-accent-primary);
+  --ifm-menu-color-background-active:  #161c28;
+  --ifm-menu-color-background-hover:   #111827;
+
+  --ifm-link-color:       var(--cl-text-link);
+  --ifm-link-hover-color: var(--cl-text-link-hover);
+
+  --ifm-code-background:  var(--cl-code-bg);
+  --ifm-pre-background:   var(--cl-code-bg);
+
+  --ifm-toc-border-color:         var(--cl-border-default);
+  --ifm-blockquote-color:         var(--cl-text-secondary);
+  --ifm-table-stripe-background:  rgba(255, 255, 255, 0.03);
+
+  --ifm-color-success: #4ade80;
+  --ifm-color-info:    #7aa7f5;
+  --ifm-color-warning: #e0a93a;
+  --ifm-color-danger:  #f87171;
+
+  --docusaurus-highlighted-code-line-bg: rgba(122, 167, 245, 0.12);
+
+  --ifm-tabs-color:               var(--cl-text-secondary);
+  --ifm-tabs-color-active:        var(--cl-accent-primary);
+  --ifm-tabs-color-active-border: var(--cl-accent-primary);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────── */
+/* Component overrides                                                         */
+/* ─────────────────────────────────────────────────────────────────────────── */
+
+/* Headings */
+h1, h2, h3 {
+  letter-spacing: -0.01em;
+}
+
+/* ── Code blocks ── */
+pre.prism-code {
+  background: var(--cl-code-bg);
+  border: 1px solid var(--cl-code-border);
+}
+
+code {
+  background: var(--cl-code-bg);
+  border: 1px solid var(--cl-border-muted);
+  color: var(--cl-code-text);
+  font-family: var(--ifm-font-family-monospace);
+  font-size: var(--ifm-code-font-size);
+  padding: 0.1em 0.35em;
+  border-radius: var(--ifm-code-border-radius);
+}
+
+pre code {
+  /* Inside a code block — no extra border, handled by pre */
+  background: transparent;
+  border: none;
+  padding: 0;
+}
+
+/* ── Navbar ── */
+.navbar {
+  background: var(--cl-surface-nav);
+  box-shadow: 0 1px 0 var(--cl-border-default);
+}
+
+.navbar__link {
+  color: var(--cl-text-secondary);
+  transition: color 150ms ease;
+}
+
+.navbar__link:hover,
+.navbar__link--active {
+  color: var(--cl-accent-primary);
+}
+
+/* ── Sidebar ── */
+.theme-doc-sidebar-container {
+  background: var(--cl-surface-sidebar);
+  border-right: 1px solid var(--cl-border-default);
+}
+
+.menu {
+  background: var(--cl-surface-sidebar);
+}
+
+.menu__link {
+  color: var(--cl-text-secondary);
+  transition: color 150ms ease, background 150ms ease;
+  border-radius: 4px;
+}
+
+.menu__link:hover {
+  background: var(--ifm-menu-color-background-hover);
+  color: var(--cl-text-primary);
+}
+
+/* Active sidebar item — accent left border */
+.menu__link--active {
+  color: var(--cl-accent-primary);
+  background: var(--ifm-menu-color-background-active);
+  border-left: 2px solid var(--cl-accent-primary);
+  padding-left: calc(var(--ifm-menu-link-padding-horizontal) - 2px);
+  font-weight: 600;
+}
+
+/* ── Table of contents ── */
+.table-of-contents {
+  border-left: 1px solid var(--cl-border-default);
+}
+
+.table-of-contents__link {
+  color: var(--cl-text-muted);
+  transition: color 150ms ease;
+}
+
+.table-of-contents__link:hover,
+.table-of-contents__link--active {
+  color: var(--cl-accent-primary);
+}
+
+/* ── Admonitions ── */
+.alert {
+  border-left: 4px solid;
+  border-radius: 6px;
+}
+
+.alert--info {
+  background: var(--cl-state-info-bg);
+  border-color: var(--cl-state-info-border);
+  color: var(--cl-state-info-text);
+}
+
+.alert--success {
+  background: var(--cl-state-tip-bg);
+  border-color: var(--cl-state-tip-border);
+  color: var(--cl-state-tip-text);
+}
+
+.alert--secondary {
+  background: var(--cl-state-note-bg);
+  border-color: var(--cl-state-note-border);
+  color: var(--cl-state-note-text);
+}
+
+.alert--warning {
+  background: var(--cl-state-caution-bg);
+  border-color: var(--cl-state-caution-border);
+  color: var(--cl-state-caution-text);
+}
+
+.alert--danger {
+  background: var(--cl-state-danger-bg);
+  border-color: var(--cl-state-danger-border);
+  color: var(--cl-state-danger-text);
+}
+
+/* ── Tabs ── */
+.tabs__item {
+  color: var(--ifm-tabs-color);
+  transition: color 150ms ease, border-color 150ms ease;
+  border-bottom: 2px solid transparent;
+}
+
+.tabs__item:hover {
+  color: var(--cl-accent-primary);
+  border-bottom-color: var(--cl-border-default);
+}
+
+.tabs__item--active {
+  color: var(--ifm-tabs-color-active);
+  border-bottom-color: var(--ifm-tabs-color-active-border);
+  font-weight: 600;
+}
+
+/* ── Buttons ── */
+.button--primary {
+  background: var(--cl-accent-primary);
+  border-color: var(--cl-accent-primary);
+  color: var(--cl-text-inverse);
+  transition: background 150ms ease, border-color 150ms ease;
+}
+
+.button--primary:hover {
+  background: var(--cl-accent-primary-hover);
+  border-color: var(--cl-accent-primary-hover);
+  color: var(--cl-text-inverse);
+}
+
+.button--secondary {
+  border-color: var(--cl-accent-primary);
+  color: var(--cl-accent-primary);
+  transition: background 150ms ease, color 150ms ease;
+}
+
+.button--secondary:hover {
+  background: var(--cl-bg-subtle);
+  color: var(--cl-accent-primary-hover);
+}
+
+/* ── Links ── */
+a {
+  color: var(--cl-text-link);
+  transition: color 150ms ease;
+}
+
+a:hover {
+  color: var(--cl-text-link-hover);
+}
+
+/* ── Selection ── */
+::selection {
+  background: rgba(26, 68, 128, 0.15);
+  color: var(--cl-text-primary);
+}
+
+[data-theme='dark'] ::selection {
+  background: rgba(122, 167, 245, 0.2);
+}
+
+/* ── Focus ring ── */
+:focus-visible {
+  outline: 2px solid var(--cl-focus-ring);
+  outline-offset: 2px;
+}
+
+/* ── Blockquote ── */
+blockquote {
+  border-left: 3px solid var(--cl-border-default);
+  color: var(--cl-text-secondary);
+  background: var(--cl-bg-canvas);
+  padding: 0.75rem 1rem;
+  border-radius: 0 4px 4px 0;
+}
+
+/* ── Tables ── */
+table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+thead {
+  background: var(--cl-surface-card);
+}
+
+th {
+  color: var(--cl-text-primary);
+  font-weight: 600;
+  border-bottom: 2px solid var(--cl-border-default);
+}
+
+td, th {
+  border: 1px solid var(--cl-border-default);
+  padding: 0.5rem 0.75rem;
+}
+
+tr:nth-child(even) {
+  background: var(--ifm-table-stripe-background);
+}
+
+/* ── API method badges ── */
+.api-method {
+  display: inline-block;
+  border-radius: 4px;
+  font-family: var(--ifm-font-family-monospace);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 0.2em 0.55em;
+  text-transform: uppercase;
+  vertical-align: middle;
+}
+
+.api-method--get {
+  background: var(--cl-state-tip-bg);
+  border: 1px solid var(--cl-state-tip-border);
+  color: var(--cl-state-tip-text);
+}
+
+.api-method--post {
+  background: var(--cl-state-info-bg);
+  border: 1px solid var(--cl-state-info-border);
+  color: var(--cl-state-info-text);
+}
+
+.api-method--put {
+  background: var(--cl-state-caution-bg);
+  border: 1px solid var(--cl-state-caution-border);
+  color: var(--cl-state-caution-text);
+}
+
+.api-method--patch {
+  background: var(--cl-state-note-bg);
+  border: 1px solid var(--cl-state-note-border);
+  color: var(--cl-state-note-text);
+}
+
+.api-method--delete {
+  background: var(--cl-state-danger-bg);
+  border: 1px solid var(--cl-state-danger-border);
+  color: var(--cl-state-danger-text);
+}
+
+/* ── Hero gradient utility — for hero/CTA panels only ── */
+.cl-hero-gradient {
+  background: linear-gradient(
+    135deg,
+    var(--cl-accent-primary) 0%,
+    var(--zuit-slate-700) 100%
+  );
+}
+
+/* ── DocSearch / Algolia search bar ── */
+.DocSearch-Button {
+  background: var(--cl-surface-card);
+  border: 1px solid var(--cl-border-default);
+  color: var(--cl-text-muted);
+  transition: border-color 150ms ease, background 150ms ease;
+}
+
+.DocSearch-Button:hover {
+  border-color: var(--cl-accent-primary);
+  background: var(--cl-bg-subtle);
+}
+
+.DocSearch-Modal {
+  background: var(--cl-bg-default);
+  border: 1px solid var(--cl-border-default);
+}
+
+.DocSearch-SearchBar {
+  background: var(--cl-surface-card);
+  border-bottom: 1px solid var(--cl-border-default);
+}
+
+.DocSearch-Hit-Container {
+  background: var(--cl-bg-default);
+}
+
+.DocSearch-Hit[aria-selected='true'] a {
+  background: var(--cl-bg-subtle);
+}
+
+.DocSearch-Hit-title {
+  color: var(--cl-text-primary);
+}
+
+.DocSearch-Hit-path {
+  color: var(--cl-text-muted);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────── */
+/* Rule-page metadata header — CSS-only over the existing leading table        */
+/* ─────────────────────────────────────────────────────────────────────────── */
+
+/* The first <table> in every rules/<RULE_ID> page is the Property|Value table.
+   Reshape it into a 3-column metadata card with a dimension-colored top band.
+   The dimension color is set on the element via Root.tsx; default falls back
+   to --cl-accent-primary so pages that don't match a known dimension still
+   render coherently. */
+.theme-doc-markdown > table[data-rule-meta] {
+  display: grid;
+  grid-auto-flow: column;
+  grid-template-rows: auto auto;
+  grid-auto-columns: minmax(0, 1fr);
+  column-gap: 1.5rem;
+  border: 1px solid var(--cl-border-default);
+  border-top: 3px solid var(--cl-rule-band);
+  border-radius: 8px;
+  background: var(--cl-surface-card);
+  padding: 0.75rem 1rem;
+  margin: 0.5rem 0 1.5rem 0;
+}
+
+.theme-doc-markdown > table[data-rule-meta] thead {
+  display: none;
+}
+
+.theme-doc-markdown > table[data-rule-meta] tbody,
+.theme-doc-markdown > table[data-rule-meta] tr {
+  display: contents;
+}
+
+.theme-doc-markdown > table[data-rule-meta] th,
+.theme-doc-markdown > table[data-rule-meta] td {
+  border: none;
+  padding: 0.35rem 0.5rem;
+  background: transparent;
+}
+
+.theme-doc-markdown > table[data-rule-meta] tbody td:nth-child(1) {
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--cl-text-muted);
+}
+
+.theme-doc-markdown > table[data-rule-meta] tbody td:nth-child(2) {
+  color: var(--cl-text-primary);
+  font-weight: 500;
+}
+
+/* Stack the metadata card vertically on narrow screens */
+@media screen and (max-width: 600px) {
+  .theme-doc-markdown > table[data-rule-meta] {
+    grid-auto-flow: row;
+    grid-template-rows: none;
+    grid-template-columns: minmax(0, max-content) 1fr;
+    column-gap: 1rem;
+    row-gap: 0.25rem;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────── */
+/* Reading rhythm — prose width cap, TOC header, lead paragraph                */
+/* ─────────────────────────────────────────────────────────────────────────── */
+
+/* Cap reading line length so prose stays under ~72ch on wide viewports.
+   Scoped to the markdown article container so admonitions, tables, and
+   code blocks inherit the cap without overflowing. */
+.theme-doc-markdown {
+  max-width: 72ch;
+}
+
+/* "On this page" header for the TOC rail */
+.table-of-contents::before {
+  content: "On this page";
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--cl-text-muted);
+  padding: 0 0 0.5rem 0;
+  margin-bottom: 0.5rem;
+  border-bottom: 1px solid var(--cl-border-muted);
+}
+
+/* Lead paragraph — first <p> immediately after the page H1 */
+.theme-doc-markdown > h1 + p {
+  font-size: 1.125rem;
+  line-height: 1.6;
+  color: var(--cl-text-secondary);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────── */
+/* Reduced motion                                                              */
+/* ─────────────────────────────────────────────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

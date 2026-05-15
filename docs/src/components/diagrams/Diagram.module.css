@@ -1,0 +1,104 @@
+/* Shared CSS module for all diagram components */
+
+.wrapper {
+  width: 100%;
+  max-width: 960px;
+  margin: 1.5rem auto;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.svg {
+  display: block;
+  width: 100%;
+  font-family: inherit;
+}
+
+/* Pipeline diagram */
+.pipelineWrapper {
+  width: 100%;
+  max-width: 960px;
+  margin: 1.5rem auto;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.pipelineCaption {
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--cl-text-muted);
+  margin-top: 0.4rem;
+  font-style: italic;
+}
+
+/* Two-axis extensibility */
+.twoAxisWrapper {
+  width: 100%;
+  max-width: 840px;
+  margin: 1.5rem auto;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Dimensions hexagon */
+.dimensionsWrapper {
+  width: 100%;
+  max-width: 720px;
+  margin: 1.5rem auto;
+  position: relative;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Severity weights */
+.severityWrapper {
+  width: 100%;
+  max-width: 720px;
+  margin: 1.5rem auto;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Tooltip shared styles */
+.tooltip {
+  position: absolute;
+  background: var(--cl-surface-elevated);
+  border: 1px solid var(--cl-border-default);
+  border-radius: 6px;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.8rem;
+  color: var(--cl-text-primary);
+  pointer-events: none;
+  white-space: nowrap;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  z-index: 10;
+}
+
+/* Pill hover states */
+.pill {
+  cursor: pointer;
+  transition: transform 150ms ease;
+}
+
+.pill:focus {
+  outline: 2px solid var(--cl-focus-ring);
+  outline-offset: 2px;
+}
+
+/* Bar chart entrance animation — one-shot */
+@media (prefers-reduced-motion: no-preference) {
+  .barAnimated {
+    animation: barGrow 0.6s ease forwards;
+    transform-origin: left center;
+  }
+
+  @keyframes barGrow {
+    from {
+      transform: scaleX(0);
+    }
+    to {
+      transform: scaleX(1);
+    }
+  }
+}
+
