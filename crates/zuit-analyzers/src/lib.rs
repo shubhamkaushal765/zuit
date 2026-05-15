@@ -12,6 +12,7 @@
 //! | `MAINT006-too-many-params` | [`TooManyParamsAnalyzer`] | Maintainability |
 //! | `MAINT007-return-complexity` | [`ReturnComplexityAnalyzer`] | Maintainability |
 //! | `MAINT008-large-impl-block` | [`LargeImplBlockAnalyzer`] | Maintainability |
+//! | `MAINT014-commented-out-code` | [`CommentedCodeAnalyzer`] | Maintainability |
 //! | `DOC001-public-api-undoc` | [`PublicApiUndocAnalyzer`] | Documentation |
 //! | `DOC002-todo-fixme` | [`TodoFixmeAnalyzer`] | Documentation |
 //! | `DOC003-empty-doc` | [`EmptyDocAnalyzer`] | Documentation |
@@ -60,6 +61,7 @@
 
 pub mod assert_count;
 pub mod cognitive;
+pub mod commented_code;
 pub mod cors_permissive;
 pub mod csrf_missing;
 pub mod cyclic_deps;
@@ -93,6 +95,7 @@ pub mod weak_crypto;
 
 pub use assert_count::AssertCountAnalyzer;
 pub use cognitive::CognitiveAnalyzer;
+pub use commented_code::CommentedCodeAnalyzer;
 pub use cors_permissive::CorsPermissiveAnalyzer;
 pub use csrf_missing::CsrfMissingAnalyzer;
 pub use cyclic_deps::CyclicDepsAnalyzer;
@@ -132,7 +135,7 @@ pub use weak_crypto::WeakCryptoAnalyzer;
 /// 1. Maintainability: [`CyclomaticAnalyzer`], [`CognitiveAnalyzer`],
 ///    [`FnLengthAnalyzer`], [`FileLengthAnalyzer`], [`DeepNestingAnalyzer`],
 ///    [`TooManyParamsAnalyzer`], [`ReturnComplexityAnalyzer`],
-///    [`LargeImplBlockAnalyzer`].
+///    [`LargeImplBlockAnalyzer`], [`CommentedCodeAnalyzer`].
 /// 2. Documentation: [`PublicApiUndocAnalyzer`], [`TodoFixmeAnalyzer`],
 ///    [`EmptyDocAnalyzer`], [`StaleDocAnalyzer`].
 /// 3. Security: [`HardcodedSecretAnalyzer`], [`ShellInjectionAnalyzer`],
@@ -156,6 +159,7 @@ pub fn builtin() -> Vec<Box<dyn zuit_core::Analyzer>> {
         Box::new(TooManyParamsAnalyzer::new()),
         Box::new(ReturnComplexityAnalyzer),
         Box::new(LargeImplBlockAnalyzer),
+        Box::new(CommentedCodeAnalyzer),
         Box::new(PublicApiUndocAnalyzer),
         Box::new(TodoFixmeAnalyzer),
         Box::new(EmptyDocAnalyzer),

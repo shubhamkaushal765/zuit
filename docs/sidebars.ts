@@ -202,6 +202,7 @@ const sidebars: SidebarsConfig = {
             'rules/MAINT008-large-impl-block',
             'rules/MAINT011-active-debug-code',
             'rules/MAINT013-empty-block',
+            'rules/MAINT014-commented-out-code',
           ],
         },
         {
