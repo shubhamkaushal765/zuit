@@ -4,30 +4,29 @@ on:
   push:
     branches:
       - main
-      - claude/migrate-docs-gh-pages-9PuBM
     paths:
       - 'docs/**'
       - '.github/workflows/docs-deploy.yml'
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
+  pages: write
+  id-token: write
 
 concurrency:
   group: pages-deploy
   cancel-in-progress: true
 
 jobs:
-  build-and-deploy:
-    name: Build and publish to gh-pages
+  build:
+    name: Build site
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: docs
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:
@@ -41,11 +40,18 @@ jobs:
       - name: Build site
         run: npm run build
 
-      - name: Publish to gh-pages
-        uses: peaceiris/actions-gh-pages@v4
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./docs/build
-          publish_branch: gh-pages
-          user_name: 'github-actions[bot]'
-          user_email: 'github-actions[bot]@users.noreply.github.com'
+          path: docs/build
+
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

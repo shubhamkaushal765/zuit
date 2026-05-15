@@ -28,7 +28,6 @@ const config: Config = {
   // GitHub pages deployment config.
   organizationName: 'shubhamkaushal765',
   projectName: 'zuit',
-  deploymentBranch: 'gh-pages',
   trailingSlash: false,
 
   onBrokenLinks: 'throw',
