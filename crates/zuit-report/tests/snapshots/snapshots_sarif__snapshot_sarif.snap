@@ -68,13 +68,9 @@ expression: output
               }
             }
           ],
-          "fixes": [
-            {
-              "description": {
-                "text": "Move credentials to environment variables or a secrets manager."
-              }
-            }
-          ],
+          "properties": {
+            "suggestion": "Move credentials to environment variables or a secrets manager."
+          },
           "taxa": [
             {
               "toolComponent": {
@@ -147,13 +143,9 @@ expression: output
               }
             }
           ],
-          "fixes": [
-            {
-              "description": {
-                "text": "Add a `///` doc comment explaining purpose, parameters, and return value."
-              }
-            }
-          ],
+          "properties": {
+            "suggestion": "Add a `///` doc comment explaining purpose, parameters, and return value."
+          },
           "taxa": [
             {
               "toolComponent": {
@@ -184,13 +176,9 @@ expression: output
               }
             }
           ],
-          "fixes": [
-            {
-              "description": {
-                "text": "Extract sub-routines to reduce branching."
-              }
-            }
-          ],
+          "properties": {
+            "suggestion": "Extract sub-routines to reduce branching."
+          },
           "taxa": [
             {
               "toolComponent": {

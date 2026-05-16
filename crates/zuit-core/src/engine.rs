@@ -1621,6 +1621,11 @@ overrides = { "tests/**" = "ignore" }
         let engine = Engine::new(r);
         let config = Config::default();
 
+        // Warm up rayon's thread pool: cold-start spawn cost on macOS CI runners
+        // routinely adds 30–50ms to the first parallel iteration, which would
+        // be falsely attributed to "not running in parallel" otherwise.
+        let _ = engine.analyze_path(tmp.path(), &config).unwrap();
+
         let t0 = std::time::Instant::now();
         let report = engine.analyze_path(tmp.path(), &config).unwrap();
         let elapsed = t0.elapsed();
@@ -1628,11 +1633,13 @@ overrides = { "tests/**" = "ignore" }
         // Always: both analyzers must have returned their findings.
         assert_eq!(report.findings.len(), 2, "both project analyzers must emit");
 
-        // Wall-time: only gate when rayon has multiple threads.
+        // Wall-time: only gate when rayon has multiple threads. Threshold is the
+        // serial floor (2 × 50ms sleep = 100ms — `std::thread::sleep` guarantees
+        // at-least, so anything <100ms can only have happened in parallel).
         if rayon::current_num_threads() > 1 {
             assert!(
-                elapsed < std::time::Duration::from_millis(90),
-                "parallel project analyzers should finish in <90ms, took {elapsed:?}"
+                elapsed < std::time::Duration::from_millis(100),
+                "parallel project analyzers should finish in <100ms (serial floor), took {elapsed:?}"
             );
         }
     }

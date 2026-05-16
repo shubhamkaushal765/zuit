@@ -142,43 +142,49 @@ fn sarif_level_mapping() {
     );
 }
 
-/// Verifies that the `fixes` field is only present when a suggestion exists.
+/// Verifies that prose suggestions surface under `properties.suggestion`
+/// (never under `fixes`, which SARIF 2.1.0 reserves for structured
+/// `artifactChanges` and is rejected by GitHub code-scanning's schema
+/// validator when it lacks them).
 #[test]
-fn sarif_fixes_omitted_when_no_suggestion() {
+fn sarif_suggestion_emitted_as_property() {
     let report = common::fake_report();
     let output = render_sarif(&report).expect("render_sarif should not fail");
     let v: Value = serde_json::from_str(&output).unwrap();
     let results = v["runs"][0]["results"].as_array().unwrap();
 
+    // No result must ever carry a `fixes` field — we never emit one.
     for result in results {
-        // The second SEC001 finding has no suggestion — its fixes must be absent.
-        if result["ruleId"].as_str() == Some("SEC001-hardcoded-secret")
-            && result["level"].as_str() == Some("error")
-        {
-            // The critical finding HAS a suggestion; the high one does NOT.
-            // We can't distinguish them by rule_id alone, so we check both:
-            // if fixes is present it must be a non-empty array.
-            if let Some(fixes) = result.get("fixes") {
-                let arr = fixes
-                    .as_array()
-                    .expect("`fixes` must be an array if present");
-                assert!(
-                    !arr.is_empty(),
-                    "`fixes` must not be an empty array if present"
-                );
-            }
-        }
+        assert!(
+            result.get("fixes").is_none(),
+            "fixes must never be emitted (suggestions go under properties)"
+        );
     }
 
-    // Find the High SEC001 finding (no suggestion) — it must have no `fixes`.
-    // The High finding has message containing "JWT".
+    // The High SEC001 finding has message containing "JWT" and no suggestion;
+    // its properties must therefore be absent.
     let jwt_result = results
         .iter()
         .find(|r| r["message"]["text"].as_str().unwrap_or("").contains("JWT"))
         .expect("JWT finding must be present");
     assert!(
-        jwt_result.get("fixes").is_none(),
-        "fixes must be omitted when suggestion is None"
+        jwt_result.get("properties").is_none(),
+        "properties must be absent when suggestion is None"
+    );
+
+    // At least one result must carry a properties.suggestion — the Critical
+    // SEC001 finding in the fake report has one.
+    let with_suggestion: Vec<_> = results
+        .iter()
+        .filter(|r| {
+            r.get("properties")
+                .and_then(|p| p.get("suggestion"))
+                .is_some()
+        })
+        .collect();
+    assert!(
+        !with_suggestion.is_empty(),
+        "at least one result must surface a suggestion via properties.suggestion"
     );
 }
 

@@ -177,11 +177,17 @@ fn finding_to_result(finding: &Finding) -> Value {
         }]
     });
 
-    // Emit `fixes` only when a suggestion is present.
+    // Emit `suggestion` under `properties` (SARIF propertyBag, §3.8) when present.
+    //
+    // SARIF 2.1.0 §3.55 requires every `fix` object to carry a non-empty
+    // `artifactChanges` array of structured replacements (deletedRegion +
+    // insertedContent). zuit's suggestions are free-form prose, not
+    // machine-applicable edits, so emitting them under `fixes` made the SARIF
+    // fail GitHub code-scanning's schema validator on upload. Prose remediation
+    // belongs in the propertyBag — consumers that want to render it can pull
+    // `result.properties.suggestion`.
     if let Some(suggestion) = &finding.suggestion {
-        result["fixes"] = json!([{
-            "description": { "text": suggestion }
-        }]);
+        result["properties"] = json!({ "suggestion": suggestion });
     }
 
     // Emit `taxa` only when CWE or OWASP entries are present.
@@ -383,11 +389,11 @@ mod tests {
     }
 
     // ------------------------------------------------------------------
-    // Unit test: finding with suggestion emits fixes
+    // Unit test: finding with suggestion emits properties.suggestion
     // ------------------------------------------------------------------
 
     #[test]
-    fn finding_with_suggestion_emits_fixes() {
+    fn finding_with_suggestion_emits_property() {
         let finding = zuit_core::finding::Finding {
             analyzer: AnalyzerId::new("test"),
             dimension: Dimension::Security,
@@ -406,12 +412,15 @@ mod tests {
             owasp: vec![],
         };
         let result = finding_to_result(&finding);
-        let fixes = result["fixes"].as_array().expect("fixes must be present");
-        assert_eq!(fixes[0]["description"]["text"], "use env vars");
+        assert_eq!(result["properties"]["suggestion"], "use env vars");
+        assert!(
+            result.get("fixes").is_none(),
+            "fixes must never be emitted — suggestions are prose, not artifactChanges"
+        );
     }
 
     #[test]
-    fn finding_without_suggestion_omits_fixes() {
+    fn finding_without_suggestion_omits_properties() {
         let finding = zuit_core::finding::Finding {
             analyzer: AnalyzerId::new("test"),
             dimension: Dimension::Security,
@@ -431,8 +440,9 @@ mod tests {
         };
         let result = finding_to_result(&finding);
         assert!(
-            result.get("fixes").is_none(),
-            "fixes must be absent when suggestion is None"
+            result.get("properties").is_none(),
+            "properties must be absent when suggestion is None"
         );
+        assert!(result.get("fixes").is_none(), "fixes must never be emitted");
     }
 }
