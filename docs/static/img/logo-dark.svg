@@ -1,11 +1,9 @@
-<!-- zuit mark (dark-mode variant): solid stencil Z. Cool near-white #eef4ff
-     (--zuit-blue-50) reads at ~16:1 contrast on slate/black backgrounds while
-     retaining the faint steel-blue tint that connects to the brand palette. -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="zuit">
   <title>zuit</title>
   <g fill="#eef4ff">
     <rect x="10" y="10" width="44" height="10"/>
     <polygon points="42,20 54,20 22,44 10,44"/>
+    <rect x="20" y="30" width="24" height="4"/>
     <rect x="10" y="44" width="44" height="10"/>
   </g>
 </svg>

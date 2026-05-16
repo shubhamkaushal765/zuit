@@ -1,7 +1,3 @@
-<!-- zuit-show favicon: solid stencil Z with embedded prefers-color-scheme
-     switch. The dashboard renders inside the user's browser, so a single
-     self-adapting SVG (light: navy #1a4480, dark: cool near-white #eef4ff)
-     pairs cleanly with the dashboard's own data-theme toggle. -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="zuit">
   <title>zuit</title>
   <style>
@@ -13,6 +9,7 @@
   <g class="z-mark">
     <rect x="10" y="10" width="44" height="10"/>
     <polygon points="42,20 54,20 22,44 10,44"/>
+    <rect x="20" y="30" width="24" height="4"/>
     <rect x="10" y="44" width="44" height="10"/>
   </g>
 </svg>
