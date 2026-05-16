@@ -241,6 +241,15 @@ pub(crate) struct RustAst {
     /// Populated by [`Extractor`] for every `match` expression.  The analyzer
     /// fires when `!has_wildcard && scrutinee_kind != Other`.
     pub(crate) match_sites: Vec<RustMatchSite>,
+
+    /// Spans of `loop {}` expressions with no reachable exit for
+    /// `MAINT010-infinite-loop-no-exit`.
+    ///
+    /// Populated by [`Extractor`] for every `syn::ExprLoop` whose body,
+    /// after excluding nested loops and closures, contains no `break`,
+    /// `return`, or diverging macro (`panic!`, `unreachable!`, `todo!`,
+    /// `unimplemented!`).
+    pub(crate) infinite_loops: Vec<Span>,
 }
 
 // RustAst contains only Vec<UnsafeItem> where UnsafeItem holds Span (&'static str
@@ -539,6 +548,9 @@ struct Extractor<'src> {
     /// Match expression sites for `MAINT009-missing-default-case`.
     match_sites: Vec<RustMatchSite>,
 
+    /// Spans of infinite `loop {}` bodies for `MAINT010-infinite-loop-no-exit`.
+    infinite_loops: Vec<Span>,
+
     source: &'src SourceFile,
     /// `true` while inside an `extern "…"` block.
     in_foreign_mod: bool,
@@ -568,6 +580,7 @@ impl<'src> Extractor<'src> {
             assignments: Vec::new(),
             log_calls: Vec::new(),
             match_sites: Vec::new(),
+            infinite_loops: Vec::new(),
             source,
             in_foreign_mod: false,
             pending_pub_struct_raw_ptr: Vec::new(),
@@ -1081,6 +1094,18 @@ impl<'ast> Visit<'ast> for Extractor<'_> {
 
         syn::visit::visit_expr_match(self, node);
     }
+
+    // MAINT010: detect `loop {}` with no reachable exit.
+    fn visit_expr_loop(&mut self, node: &'ast syn::ExprLoop) {
+        let mut scanner = LoopExitScanner::new();
+        scanner.visit_block(&node.body);
+        if !scanner.has_exit {
+            let span = proc_span_to_byte_span(node.loop_token.span, self.source);
+            self.infinite_loops.push(span);
+        }
+        // Always recurse so nested loops are also checked.
+        syn::visit::visit_expr_loop(self, node);
+    }
 }
 
 /// Returns `true` if `pat` is `Pat::Wild` or a `Pat::Or` containing `Pat::Wild`.
@@ -1089,6 +1114,78 @@ fn pat_has_wildcard(pat: &syn::Pat) -> bool {
         syn::Pat::Wild(_) => true,
         syn::Pat::Or(po) => po.cases.iter().any(pat_has_wildcard),
         _ => false,
+    }
+}
+
+// ── Loop-exit scanner for MAINT010 ───────────────────────────────────────────
+
+/// Macro names that act as unconditional diverging calls (process exits).
+const EXIT_MACRO_NAMES: &[&str] = &["panic", "unreachable", "todo", "unimplemented"];
+
+/// A sub-visitor that scans a `loop {}` body for reachable exit statements at
+/// the **same** nesting depth.
+///
+/// It overrides `visit_expr_loop`, `visit_expr_for_loop`, `visit_expr_while`,
+/// and `visit_expr_closure` to **not** recurse into their bodies, so that a
+/// `break` inside an inner `loop {}` or a `for` loop does not falsely indicate
+/// that the outer loop can exit.  Similarly, a `return` inside a closure only
+/// returns from the closure, not from the outer function.
+struct LoopExitScanner {
+    has_exit: bool,
+}
+
+impl LoopExitScanner {
+    fn new() -> Self {
+        Self { has_exit: false }
+    }
+}
+
+impl<'ast> Visit<'ast> for LoopExitScanner {
+    // `break` at this nesting level exits the current loop.
+    fn visit_expr_break(&mut self, _node: &'ast syn::ExprBreak) {
+        self.has_exit = true;
+        // Do not recurse — break carries no further sub-expressions of interest.
+    }
+
+    // `return` at this nesting level exits the enclosing function (and thus the loop).
+    fn visit_expr_return(&mut self, _node: &'ast syn::ExprReturn) {
+        self.has_exit = true;
+    }
+
+    // A macro call that diverges (panic!, unreachable!, etc.) counts as an exit.
+    fn visit_macro(&mut self, node: &'ast syn::Macro) {
+        let name = node
+            .path
+            .segments
+            .last()
+            .map(|s| s.ident.to_string())
+            .unwrap_or_default();
+        if EXIT_MACRO_NAMES.contains(&name.as_str()) {
+            self.has_exit = true;
+        }
+        // Do NOT call syn::visit::visit_macro here; macros have no further
+        // interesting sub-structure for our purposes.
+    }
+
+    // STOP descending into nested `loop {}` — its break targets the inner loop.
+    fn visit_expr_loop(&mut self, _node: &'ast syn::ExprLoop) {
+        // Do not recurse.
+    }
+
+    // STOP descending into `for` loops — their break targets the for loop.
+    fn visit_expr_for_loop(&mut self, _node: &'ast syn::ExprForLoop) {
+        // Do not recurse.
+    }
+
+    // STOP descending into `while` loops — their break targets the while loop.
+    fn visit_expr_while(&mut self, _node: &'ast syn::ExprWhile) {
+        // Do not recurse.
+    }
+
+    // STOP descending into closures — their `return` and `break` do not exit
+    // the enclosing loop.
+    fn visit_expr_closure(&mut self, _node: &'ast syn::ExprClosure) {
+        // Do not recurse.
     }
 }
 
@@ -1142,6 +1239,7 @@ pub(crate) fn parse(source: Arc<SourceFile>) -> Result<ParsedFile, ParseError> {
             log_calls: extractor.log_calls,
             pub_struct_with_raw_ptr,
             match_sites: extractor.match_sites,
+            infinite_loops: extractor.infinite_loops,
         })
     };
 

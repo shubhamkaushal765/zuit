@@ -97,6 +97,9 @@ pub fn register(registry: &mut Registry) {
     registry.add_analyzer(Box::new(
         analyzers::missing_default_case::MissingDefaultCaseAnalyzer,
     ));
+    registry.add_analyzer(Box::new(
+        analyzers::infinite_loop_no_exit::InfiniteLoopNoExitAnalyzer,
+    ));
 
     // SOUND family
     registry.add_analyzer(Box::new(
@@ -226,8 +229,8 @@ mod tests {
         let mut registry = Registry::new();
         register(&mut registry);
         assert_eq!(registry.language_count(), 1);
-        // 1 (SEC101) + 1 (MAINT013) + 1 (MAINT009) + 6 SOUND + 10 PKG + 5 HEALTH + 4 CHAIN
-        // + 3 PERF + 4 ECO + 5 CI + 4 external + 1 (SEC015) = 48 total.
-        assert_eq!(registry.analyzer_count(), 48);
+        // 1 (SEC101) + 1 (MAINT013) + 1 (MAINT009) + 1 (MAINT010) + 6 SOUND + 10 PKG + 5 HEALTH
+        // + 4 CHAIN + 3 PERF + 4 ECO + 5 CI + 4 external + 1 (SEC015) = 49 total.
+        assert_eq!(registry.analyzer_count(), 49);
     }
 }

@@ -211,6 +211,15 @@ pub struct JsAst {
     /// Populated for every `SwitchStatement`.  The analyzer fires when
     /// `!has_default`.
     pub switch_sites: Vec<JsSwitchSite>,
+
+    /// Spans of infinite loops (`while (true)` or `for (;;)`) for
+    /// `MAINT010-infinite-loop-no-exit`.
+    ///
+    /// Populated for every `WhileStatement` whose test is a `true` boolean
+    /// literal, and for every `ForStatement` with no init, test, or update.
+    /// Only loops whose body (excluding nested loops and function bodies)
+    /// contains no `break`, `return`, `throw`, or `process.exit` are stored.
+    pub infinite_loops: Vec<Span>,
 }
 
 /// A literal value extracted from an assignment/declaration RHS for SEC012.

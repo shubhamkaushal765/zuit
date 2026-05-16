@@ -104,6 +104,8 @@ struct WalkCtx {
     current_fn_params: Vec<Vec<String>>,
     /// Switch statement sites for `MAINT009-missing-default-case`.
     switch_sites: Vec<JsSwitchSite>,
+    /// Infinite loop spans for `MAINT010-infinite-loop-no-exit`.
+    infinite_loops: Vec<Span>,
 }
 
 impl WalkCtx {
@@ -121,6 +123,7 @@ impl WalkCtx {
             log_calls: Vec::new(),
             current_fn_params: Vec::new(),
             switch_sites: Vec::new(),
+            infinite_loops: Vec::new(),
         }
     }
 }
@@ -164,6 +167,7 @@ fn extract_call_sites(program: &Program<'_>) -> JsAst {
         assignments: ctx.assignments,
         log_calls: ctx.log_calls,
         switch_sites: ctx.switch_sites,
+        infinite_loops: ctx.infinite_loops,
     }
 }
 
@@ -424,6 +428,52 @@ fn is_string_like(arg: &Argument<'_>) -> bool {
     }
 }
 
+/// Returns `true` if the statement (or any nested statement, excluding nested
+/// loop and function bodies) constitutes a loop exit:
+/// - `BreakStatement`
+/// - `ReturnStatement`
+/// - `ThrowStatement`
+/// - `CallExpression` to `process.exit(...)`
+fn js_stmt_has_exit(stmt: &Statement<'_>) -> bool {
+    match stmt {
+        Statement::BreakStatement(_)
+        | Statement::ReturnStatement(_)
+        | Statement::ThrowStatement(_) => true,
+        Statement::ExpressionStatement(es) => js_expr_is_process_exit(&es.expression),
+        // Recurse into blocks that don't create a new loop scope.
+        Statement::BlockStatement(b) => b.body.iter().any(js_stmt_has_exit),
+        Statement::IfStatement(s) => {
+            js_stmt_has_exit(&s.consequent)
+                || s.alternate.as_ref().is_some_and(|a| js_stmt_has_exit(a))
+        }
+        Statement::TryStatement(s) => {
+            s.block.body.iter().any(js_stmt_has_exit)
+                || s.handler
+                    .as_ref()
+                    .is_some_and(|h| h.body.body.iter().any(js_stmt_has_exit))
+                || s.finalizer
+                    .as_ref()
+                    .is_some_and(|f| f.body.iter().any(js_stmt_has_exit))
+        }
+        Statement::LabeledStatement(l) => js_stmt_has_exit(&l.body),
+        // STOP at nested loops, function bodies, and everything else —
+        // their break/return is scoped to the inner body.
+        _ => false,
+    }
+}
+
+/// Returns `true` if `expr` is a call to `process.exit(...)`.
+fn js_expr_is_process_exit(expr: &Expression<'_>) -> bool {
+    if let Expression::CallExpression(call) = expr
+        && let Expression::StaticMemberExpression(member) = &call.callee
+        && member.property.name.as_str() == "exit"
+        && let Expression::Identifier(obj) = &member.object
+    {
+        return obj.name.as_str() == "process";
+    }
+    false
+}
+
 #[allow(clippy::too_many_lines)]
 fn walk_stmt(stmt: &Statement<'_>, out: &mut WalkCtx) {
     match stmt {
@@ -475,6 +525,19 @@ fn walk_stmt(stmt: &Statement<'_>, out: &mut WalkCtx) {
             {
                 out.empty_blocks.push(oxc_span_to_core(s.span));
             }
+            // MAINT010: flag `while (true) { ... }` with no exit.
+            if let Expression::BooleanLiteral(b) = &s.test
+                && b.value
+            {
+                let body_stmts: Vec<&Statement<'_>> = match &s.body {
+                    Statement::BlockStatement(blk) => blk.body.iter().collect(),
+                    other => vec![other],
+                };
+                let has_exit = body_stmts.iter().any(|st| js_stmt_has_exit(st));
+                if !has_exit {
+                    out.infinite_loops.push(oxc_span_to_core(s.span));
+                }
+            }
             walk_expr(&s.test, out);
             walk_stmt(&s.body, out);
         }
@@ -488,6 +551,17 @@ fn walk_stmt(stmt: &Statement<'_>, out: &mut WalkCtx) {
                 && blk.body.is_empty()
             {
                 out.empty_blocks.push(oxc_span_to_core(s.span));
+            }
+            // MAINT010: flag `for (;;) { ... }` with no exit.
+            if s.init.is_none() && s.test.is_none() && s.update.is_none() {
+                let body_stmts: Vec<&Statement<'_>> = match &s.body {
+                    Statement::BlockStatement(blk) => blk.body.iter().collect(),
+                    other => vec![other],
+                };
+                let has_exit = body_stmts.iter().any(|st| js_stmt_has_exit(st));
+                if !has_exit {
+                    out.infinite_loops.push(oxc_span_to_core(s.span));
+                }
             }
             if let Some(init) = &s.init {
                 if let oxc_ast::ast::ForStatementInit::VariableDeclaration(v) = init {

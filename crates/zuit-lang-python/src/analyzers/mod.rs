@@ -17,6 +17,7 @@ pub mod eval_sink;
 pub mod external;
 pub mod hardcoded_security_constant;
 pub mod health;
+pub mod infinite_loop_no_exit;
 pub mod log_injection;
 pub mod missing_default_case;
 pub mod perf;

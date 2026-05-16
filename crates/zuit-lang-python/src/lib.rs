@@ -58,6 +58,9 @@ pub fn register(registry: &mut Registry) {
     registry.add_analyzer(Box::new(
         analyzers::missing_default_case::MissingDefaultCaseAnalyzer,
     ));
+    registry.add_analyzer(Box::new(
+        analyzers::infinite_loop_no_exit::InfiniteLoopNoExitAnalyzer,
+    ));
 
     // PKG — Packaging & Distribution (project-level)
     registry.add_analyzer(Box::new(
