@@ -55,6 +55,9 @@ pub fn register(registry: &mut Registry) {
         analyzers::hardcoded_security_constant::HardcodedSecurityConstantAnalyzer,
     ));
     registry.add_analyzer(Box::new(analyzers::log_injection::LogInjectionAnalyzer));
+    registry.add_analyzer(Box::new(
+        analyzers::missing_default_case::MissingDefaultCaseAnalyzer,
+    ));
 
     // PKG — Packaging & Distribution (project-level)
     registry.add_analyzer(Box::new(

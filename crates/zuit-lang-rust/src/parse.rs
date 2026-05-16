@@ -98,6 +98,38 @@ pub(crate) struct RustCallSite {
     pub(crate) span: Span,
 }
 
+/// Kind of scrutinee in a `match` expression, for `MAINT009-missing-default-case`.
+///
+/// Only `Literal` and `LowerPath` trigger a finding; `Other` scrutinees
+/// (function calls, field accesses, method calls, etc.) are out of scope.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum RustScrutineeKind {
+    /// The scrutinee is a literal (e.g. `match 1 { … }`).
+    Literal,
+    /// The scrutinee is a simple path whose **final** segment starts with a
+    /// lowercase ASCII letter (heuristic for local variables / non-enum paths).
+    LowerPath,
+    /// Any other expression shape — excluded from MAINT009 to avoid
+    /// false-positives on enum matches.
+    Other,
+}
+
+/// A `match` expression site extracted for `MAINT009-missing-default-case`.
+///
+/// Populated by [`Extractor`] inside `visit_expr_match`.  Only sites where
+/// `!has_wildcard && (scrutinee_kind == Literal || scrutinee_kind == LowerPath)`
+/// should emit a finding.
+#[derive(Debug, Clone)]
+pub(crate) struct RustMatchSite {
+    /// Classification of the scrutinee expression.
+    pub(crate) scrutinee_kind: RustScrutineeKind,
+    /// `true` if any arm pattern is `_` (wildcard) or a `|`-pattern containing
+    /// `_`.
+    pub(crate) has_wildcard: bool,
+    /// Byte span of the `match` keyword.
+    pub(crate) span: Span,
+}
+
 /// Kind of debug-code macro call extracted for `MAINT011-active-debug-code`.
 ///
 /// Defined here (not in `zuit-core`) per the per-rule extractor architecture
@@ -203,6 +235,12 @@ pub(crate) struct RustAst {
     ///
     /// Used by `ECO003-send-sync-violations-on-pub-types`.
     pub(crate) pub_struct_with_raw_ptr: Vec<Span>,
+
+    /// Match expression sites for `MAINT009-missing-default-case`.
+    ///
+    /// Populated by [`Extractor`] for every `match` expression.  The analyzer
+    /// fires when `!has_wildcard && scrutinee_kind != Other`.
+    pub(crate) match_sites: Vec<RustMatchSite>,
 }
 
 // RustAst contains only Vec<UnsafeItem> where UnsafeItem holds Span (&'static str
@@ -498,6 +536,8 @@ struct Extractor<'src> {
     assignments: Vec<RustAssignmentSite>,
     /// Log call sites for `SEC015-log-injection`.
     log_calls: Vec<RustLogCallSite>,
+    /// Match expression sites for `MAINT009-missing-default-case`.
+    match_sites: Vec<RustMatchSite>,
 
     source: &'src SourceFile,
     /// `true` while inside an `extern "…"` block.
@@ -527,6 +567,7 @@ impl<'src> Extractor<'src> {
             bind_call_sites: Vec::new(),
             assignments: Vec::new(),
             log_calls: Vec::new(),
+            match_sites: Vec::new(),
             source,
             in_foreign_mod: false,
             pending_pub_struct_raw_ptr: Vec::new(),
@@ -1005,6 +1046,50 @@ impl<'ast> Visit<'ast> for Extractor<'_> {
         }
         syn::visit::visit_item_struct(self, node);
     }
+
+    // MAINT009: detect `match` expressions without a wildcard arm.
+    fn visit_expr_match(&mut self, node: &'ast syn::ExprMatch) {
+        // Classify the scrutinee.
+        let scrutinee_kind = match &*node.expr {
+            syn::Expr::Lit(_) => RustScrutineeKind::Literal,
+            syn::Expr::Path(ep) => {
+                // Check the final path segment.
+                if let Some(last) = ep.path.segments.last() {
+                    let name = last.ident.to_string();
+                    if name.starts_with(|c: char| c.is_ascii_lowercase()) {
+                        RustScrutineeKind::LowerPath
+                    } else {
+                        RustScrutineeKind::Other
+                    }
+                } else {
+                    RustScrutineeKind::Other
+                }
+            }
+            _ => RustScrutineeKind::Other,
+        };
+
+        // Check if any arm pattern is a wildcard (`_`) or a `|`-pattern
+        // containing `_`.
+        let has_wildcard = node.arms.iter().any(|arm| pat_has_wildcard(&arm.pat));
+
+        let span = proc_span_to_byte_span(node.match_token.span, self.source);
+        self.match_sites.push(RustMatchSite {
+            scrutinee_kind,
+            has_wildcard,
+            span,
+        });
+
+        syn::visit::visit_expr_match(self, node);
+    }
+}
+
+/// Returns `true` if `pat` is `Pat::Wild` or a `Pat::Or` containing `Pat::Wild`.
+fn pat_has_wildcard(pat: &syn::Pat) -> bool {
+    match pat {
+        syn::Pat::Wild(_) => true,
+        syn::Pat::Or(po) => po.cases.iter().any(pat_has_wildcard),
+        _ => false,
+    }
 }
 
 // ── entry point ───────────────────────────────────────────────────────────────
@@ -1056,6 +1141,7 @@ pub(crate) fn parse(source: Arc<SourceFile>) -> Result<ParsedFile, ParseError> {
             assignments: extractor.assignments,
             log_calls: extractor.log_calls,
             pub_struct_with_raw_ptr,
+            match_sites: extractor.match_sites,
         })
     };
 

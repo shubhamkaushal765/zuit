@@ -19,7 +19,7 @@ use zuit_core::{ByteOffset, LanguageId, ParseError, ParsedFile, SourceFile, Span
 
 use crate::native_ast::{
     DomSinkKind, JsAssignmentSite, JsAst, JsBindCallSite, JsCallSite, JsCallee, JsDebugKind,
-    JsDomSink, JsImport, JsLiteralValue, JsLogCallSite,
+    JsDomSink, JsImport, JsLiteralValue, JsLogCallSite, JsSwitchSite,
 };
 
 /// Parses `source` as JavaScript or TypeScript and returns a populated
@@ -102,6 +102,8 @@ struct WalkCtx {
     log_calls: Vec<JsLogCallSite>,
     /// Stack of enclosing function parameter lists, for SEC015.
     current_fn_params: Vec<Vec<String>>,
+    /// Switch statement sites for `MAINT009-missing-default-case`.
+    switch_sites: Vec<JsSwitchSite>,
 }
 
 impl WalkCtx {
@@ -118,6 +120,7 @@ impl WalkCtx {
             assignments: Vec::new(),
             log_calls: Vec::new(),
             current_fn_params: Vec::new(),
+            switch_sites: Vec::new(),
         }
     }
 }
@@ -160,6 +163,7 @@ fn extract_call_sites(program: &Program<'_>) -> JsAst {
         bind_call_sites: ctx.bind_call_sites,
         assignments: ctx.assignments,
         log_calls: ctx.log_calls,
+        switch_sites: ctx.switch_sites,
     }
 }
 
@@ -507,6 +511,12 @@ fn walk_stmt(stmt: &Statement<'_>, out: &mut WalkCtx) {
         Statement::ForInStatement(s) => walk_stmt(&s.body, out),
         Statement::ForOfStatement(s) => walk_stmt(&s.body, out),
         Statement::SwitchStatement(s) => {
+            // MAINT009: record whether any case clause is `default:` (test == None).
+            let has_default = s.cases.iter().any(|c| c.test.is_none());
+            out.switch_sites.push(JsSwitchSite {
+                has_default,
+                span: oxc_span_to_core(s.span),
+            });
             walk_expr(&s.discriminant, out);
             for case in &s.cases {
                 if let Some(test) = &case.test {

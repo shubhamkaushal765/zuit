@@ -128,6 +128,18 @@ pub enum JsDebugKind {
     ConsoleTrace,
 }
 
+/// A `switch` statement site extracted for `MAINT009-missing-default-case`.
+///
+/// Populated by the walker for every `SwitchStatement`.  A finding is emitted
+/// when `!has_default`.
+#[derive(Debug, Clone)]
+pub struct JsSwitchSite {
+    /// `true` if at least one `case` clause has `test: None` (i.e. `default:`).
+    pub has_default: bool,
+    /// Byte span of the `switch` statement.
+    pub span: Span,
+}
+
 /// Pre-extracted data from a JS/TS source file stored in the [`zuit_core::ParsedFile`]
 /// native slot.
 ///
@@ -193,6 +205,12 @@ pub struct JsAst {
     /// Populated for `CallExpression`s with a logging callee shape
     /// (e.g. `logger.info(...)`, `console.log(...)`, `log.warn(...)`).
     pub log_calls: Vec<JsLogCallSite>,
+
+    /// Switch statement sites for `MAINT009-missing-default-case`.
+    ///
+    /// Populated for every `SwitchStatement`.  The analyzer fires when
+    /// `!has_default`.
+    pub switch_sites: Vec<JsSwitchSite>,
 }
 
 /// A literal value extracted from an assignment/declaration RHS for SEC012.
