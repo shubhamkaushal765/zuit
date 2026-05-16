@@ -4,7 +4,7 @@
 //!
 //! # Detection
 //!
-//! Reads the pre-extracted [`crate::native_ast::JsAst::infinite_loops`]
+//! Reads the pre-extracted `JsAst::infinite_loops`
 //! populated at parse time by the walker.  Each span represents a `while (true)`
 //! or `for (;;)` keyword whose body has no exit path at the same nesting depth.
 

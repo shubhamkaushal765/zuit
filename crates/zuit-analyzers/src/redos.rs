@@ -18,6 +18,7 @@
 //! positive).
 //!
 //! [`RegexLiteral`]: zuit_core::RegexLiteral
+//! [`SemanticIndex`]: zuit_core::SemanticIndex
 
 use regex_syntax::ast::{Alternation, Ast, GroupKind};
 

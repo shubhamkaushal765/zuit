@@ -3,7 +3,7 @@
 //!
 //! # Detection
 //!
-//! Reads the pre-extracted [`crate::parse::RustAst::log_calls`] populated at
+//! Reads the pre-extracted `RustAst::log_calls` populated at
 //! parse time by the `Extractor` visitor for `log::info!`, `log::warn!`,
 //! `info!`, `debug!`, `tracing::debug!`, etc.
 //!

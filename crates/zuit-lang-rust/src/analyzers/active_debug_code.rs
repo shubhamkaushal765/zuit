@@ -3,7 +3,7 @@
 //!
 //! # Detection
 //!
-//! Reads the pre-extracted [`crate::parse::RustAst::debug_calls`] populated at
+//! Reads the pre-extracted `RustAst::debug_calls` populated at
 //! parse time by the `Extractor` visitor.
 //!
 //! # Flagged macros

@@ -3,7 +3,7 @@
 //!
 //! # Detection
 //!
-//! Reads the pre-extracted [`crate::native_ast::JsAst::log_calls`] populated
+//! Reads the pre-extracted `JsAst::log_calls` populated
 //! at parse time by the walker.  A finding fires when ALL of:
 //!
 //! 1. The call is a known logging function:

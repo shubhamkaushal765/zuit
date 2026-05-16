@@ -3,7 +3,7 @@
 //!
 //! # Detection
 //!
-//! Reads the pre-extracted [`crate::native_ast::JsAst::switch_sites`]
+//! Reads the pre-extracted `JsAst::switch_sites`
 //! populated at parse time by the walker.  A finding is emitted for every
 //! `SwitchStatement` whose `cases` list contains no clause with `test: None`
 //! (the AST representation of a `default:` clause in oxc).

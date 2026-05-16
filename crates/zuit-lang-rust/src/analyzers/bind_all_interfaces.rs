@@ -3,9 +3,9 @@
 //!
 //! # Detection
 //!
-//! Reads the pre-extracted [`crate::parse::RustAst::bind_call_sites`] populated
+//! Reads the pre-extracted `RustAst::bind_call_sites` populated
 //! at parse time by the `Extractor` visitor.  Each call site whose first string
-//! argument passes [`crate::parse::is_bind_all_address_rust`] emits a finding.
+//! argument passes `is_bind_all_address_rust` emits a finding.
 //!
 //! # Bind-callee allowlist (Rust)
 //!

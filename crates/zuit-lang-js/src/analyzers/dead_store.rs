@@ -3,7 +3,7 @@
 //!
 //! # Detection
 //!
-//! Reads the pre-extracted [`crate::native_ast::JsAst::dead_stores`] populated
+//! Reads the pre-extracted `JsAst::dead_stores` populated
 //! at parse time by the walker.  Each site represents a variable declaration
 //! or assignment whose name does not appear in any later identifier reference
 //! in the same function scope.

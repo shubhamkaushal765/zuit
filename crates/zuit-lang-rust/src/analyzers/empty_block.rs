@@ -3,7 +3,7 @@
 //!
 //! # Detection
 //!
-//! Reads the pre-extracted [`crate::parse::RustAst::empty_blocks`] spans
+//! Reads the pre-extracted `RustAst::empty_blocks` spans
 //! populated at parse time by the `Extractor` visitor.
 //!
 //! # Skips

@@ -3,7 +3,7 @@
 //!
 //! # Detection
 //!
-//! Reads the pre-extracted [`crate::native_ast::JsAst::debug_calls`] populated
+//! Reads the pre-extracted `JsAst::debug_calls` populated
 //! at parse time by the walker.
 //!
 //! # Flagged constructs

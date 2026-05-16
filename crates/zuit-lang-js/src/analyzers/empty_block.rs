@@ -3,7 +3,7 @@
 //!
 //! # Detection
 //!
-//! Reads the pre-extracted [`crate::native_ast::JsAst::empty_blocks`] spans
+//! Reads the pre-extracted `JsAst::empty_blocks` spans
 //! populated at parse time by the walker.
 //!
 //! # Skips

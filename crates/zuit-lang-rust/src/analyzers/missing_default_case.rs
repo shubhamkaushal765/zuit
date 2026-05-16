@@ -4,12 +4,12 @@
 //!
 //! # Detection
 //!
-//! Reads the pre-extracted [`crate::parse::RustAst::match_sites`] populated at
+//! Reads the pre-extracted `RustAst::match_sites` populated at
 //! parse time by the `Extractor` visitor.  A finding is emitted when:
 //!
 //! 1. `!has_wildcard` — no arm pattern is `_` or a `|`-pattern containing `_`.
-//! 2. `scrutinee_kind` is [`RustScrutineeKind::Literal`] or
-//!    [`RustScrutineeKind::LowerPath`].
+//! 2. `scrutinee_kind` is `RustScrutineeKind::Literal` or
+//!    `RustScrutineeKind::LowerPath`.
 //!
 //! Enum matches (scrutinee path ends with an uppercase letter, e.g.
 //! `match Color::Red { … }`) are excluded to avoid false-positives on

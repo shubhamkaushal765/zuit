@@ -3,7 +3,7 @@
 //!
 //! # Detection
 //!
-//! Reads the pre-extracted [`crate::parse::RustAst::dead_stores`] populated
+//! Reads the pre-extracted `RustAst::dead_stores` populated
 //! at parse time.  Only simple immutable `let name = expr;` with a
 //! `Pat::Ident` pattern are considered (no `let mut`, no destructuring).
 //!

@@ -3,7 +3,7 @@
 //!
 //! # Detection
 //!
-//! Reads the pre-extracted [`crate::native_ast::JsAst::assignments`] populated
+//! Reads the pre-extracted `JsAst::assignments` populated
 //! at parse time by the JS walker. Each assignment site whose `lhs_name`
 //! matches a security keyword AND whose `rhs_literal` is a meaningful value
 //! emits a finding.

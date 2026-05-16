@@ -3,7 +3,7 @@
 //!
 //! # Detection
 //!
-//! Reads the pre-extracted [`crate::parse::RustAst::assignments`] populated
+//! Reads the pre-extracted `RustAst::assignments` populated
 //! at parse time by the `Extractor` visitor. Each assignment site whose
 //! `lhs_name` matches a security keyword AND whose `rhs_literal` is a
 //! meaningful value emits a finding.

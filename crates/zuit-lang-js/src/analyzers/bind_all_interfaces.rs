@@ -4,7 +4,7 @@
 //!
 //! # Detection
 //!
-//! Reads the pre-extracted [`crate::native_ast::JsAst::bind_call_sites`]
+//! Reads the pre-extracted `JsAst::bind_call_sites`
 //! populated at parse time by the walker.  Each call site whose
 //! `first_arg_string_value` passes the is-bind-all-address check emits a
 //! finding.

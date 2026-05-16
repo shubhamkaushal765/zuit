@@ -4,8 +4,8 @@
 //!
 //! # Detection
 //!
-//! Reads the pre-extracted [`crate::parse::RustAst::infinite_loops`] populated
-//! at parse time by the [`Extractor`] visitor.  Each span represents a `loop`
+//! Reads the pre-extracted `RustAst::infinite_loops` populated
+//! at parse time by the `Extractor` visitor.  Each span represents a `loop`
 //! keyword whose body, after excluding nested loops and closures, contains no
 //! `break`, `return`, or exit macro.
 
