@@ -8,7 +8,7 @@ const config: Config = {
   title: 'zuit',
   tagline:
     'See what\'s wrong with your code — across 9+ quality dimensions, in one command, deterministically.',
-  favicon: 'img/logo.svg',
+  favicon: 'img/favicon.svg',
 
   // Future flags, see https://docusaurus.io/docs/api/docusaurus-config#future
   future: {

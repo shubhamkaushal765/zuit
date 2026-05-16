@@ -1,7 +1,7 @@
-<!-- zuit-show favicon: solid stencil Z with embedded prefers-color-scheme
-     switch. The dashboard renders inside the user's browser, so a single
-     self-adapting SVG (light: navy #1a4480, dark: cool near-white #eef4ff)
-     pairs cleanly with the dashboard's own data-theme toggle. -->
+<!-- zuit favicon: solid stencil Z with embedded prefers-color-scheme switch.
+     Browsers honour @media rules inside SVGs loaded via <link rel="icon">, so
+     this single file adapts to the user's OS / browser theme without any
+     accompanying CSS. Light: navy #1a4480. Dark: cool near-white #eef4ff. -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="zuit">
   <title>zuit</title>
   <style>

@@ -1,0 +1,10 @@
+<!-- zuit mark (monochrome): solid stencil Z drawn with currentColor. Embed
+     directly in HTML/JSX or inline SVG where the foreground color is governed
+     by the surrounding text color (CLI splash via terminal palette, VSCode
+     extension chrome, embedded badges, OS-themed favicons). -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="zuit" fill="currentColor">
+  <title>zuit</title>
+  <rect x="10" y="10" width="44" height="10"/>
+  <polygon points="42,20 54,20 22,44 10,44"/>
+  <rect x="10" y="44" width="44" height="10"/>
+</svg>

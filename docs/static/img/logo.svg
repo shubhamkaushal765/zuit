@@ -1,9 +1,12 @@
-<!-- zuit lens mark: aperture ring with cardinal ticks and amber focal point -->
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" fill="none">
-  <circle cx="32" cy="32" r="26" stroke="#1e4d8c" stroke-width="7"/>
-  <line x1="32" y1="10" x2="32" y2="18" stroke="#1e4d8c" stroke-width="5" stroke-linecap="round"/>
-  <line x1="32" y1="46" x2="32" y2="54" stroke="#1e4d8c" stroke-width="5" stroke-linecap="round"/>
-  <line x1="10" y1="32" x2="18" y2="32" stroke="#1e4d8c" stroke-width="5" stroke-linecap="round"/>
-  <line x1="46" y1="32" x2="54" y2="32" stroke="#1e4d8c" stroke-width="5" stroke-linecap="round"/>
-  <circle cx="32" cy="32" r="6" fill="#d4a017"/>
+<!-- zuit mark: solid stencil Z. Three connected forms (top bar, diagonal stripe,
+     bottom bar), sharp 90° corners, single fill. Light-mode variant: navy
+     #1a4480 (--cl-accent-primary, AA-verified). For the dark-mode pair see
+     logo-dark.svg; for theme-adaptive surfaces see favicon.svg. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="zuit">
+  <title>zuit</title>
+  <g fill="#1a4480">
+    <rect x="10" y="10" width="44" height="10"/>
+    <polygon points="42,20 54,20 22,44 10,44"/>
+    <rect x="10" y="44" width="44" height="10"/>
+  </g>
 </svg>

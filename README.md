@@ -1,5 +1,8 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/shubhamkaushal765/zuit/main/docs/static/img/logo.svg" height="64" alt="zuit" />
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/shubhamkaushal765/zuit/main/docs/static/img/logo-dark.svg">
+    <img src="https://raw.githubusercontent.com/shubhamkaushal765/zuit/main/docs/static/img/logo.svg" height="64" alt="zuit" />
+  </picture>
 </p>
 
 <p align="center">
