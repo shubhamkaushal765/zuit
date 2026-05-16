@@ -220,6 +220,22 @@ pub struct JsAst {
     /// Only loops whose body (excluding nested loops and function bodies)
     /// contains no `break`, `return`, `throw`, or `process.exit` are stored.
     pub infinite_loops: Vec<Span>,
+
+    /// Dead-store sites for `MAINT012-dead-store`.
+    ///
+    /// Populated at extraction time for each function scope. A store is dead
+    /// when the name does not appear in any later `Identifier` reference in
+    /// the same function body.
+    pub dead_stores: Vec<JsDeadStore>,
+}
+
+/// A dead-store site extracted for `MAINT012-dead-store`.
+#[derive(Debug, Clone)]
+pub struct JsDeadStore {
+    /// The variable name that is written but never read.
+    pub name: String,
+    /// Byte span of the write (the entire declaration or assignment expression).
+    pub span: Span,
 }
 
 /// A literal value extracted from an assignment/declaration RHS for SEC012.

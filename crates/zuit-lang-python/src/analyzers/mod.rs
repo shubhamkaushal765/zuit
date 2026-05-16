@@ -12,6 +12,7 @@ pub mod active_debug_code;
 pub mod api;
 pub mod bind_all_interfaces;
 pub mod chain;
+pub mod dead_store;
 pub mod empty_block;
 pub mod eval_sink;
 pub mod external;

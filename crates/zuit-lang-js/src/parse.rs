@@ -18,8 +18,8 @@ use oxc_span::SourceType;
 use zuit_core::{ByteOffset, LanguageId, ParseError, ParsedFile, SourceFile, Span};
 
 use crate::native_ast::{
-    DomSinkKind, JsAssignmentSite, JsAst, JsBindCallSite, JsCallSite, JsCallee, JsDebugKind,
-    JsDomSink, JsImport, JsLiteralValue, JsLogCallSite, JsSwitchSite,
+    DomSinkKind, JsAssignmentSite, JsAst, JsBindCallSite, JsCallSite, JsCallee, JsDeadStore,
+    JsDebugKind, JsDomSink, JsImport, JsLiteralValue, JsLogCallSite, JsSwitchSite,
 };
 
 /// Parses `source` as JavaScript or TypeScript and returns a populated
@@ -106,6 +106,8 @@ struct WalkCtx {
     switch_sites: Vec<JsSwitchSite>,
     /// Infinite loop spans for `MAINT010-infinite-loop-no-exit`.
     infinite_loops: Vec<Span>,
+    /// Dead-store sites for `MAINT012-dead-store`.
+    dead_stores: Vec<JsDeadStore>,
 }
 
 impl WalkCtx {
@@ -124,6 +126,7 @@ impl WalkCtx {
             current_fn_params: Vec::new(),
             switch_sites: Vec::new(),
             infinite_loops: Vec::new(),
+            dead_stores: Vec::new(),
         }
     }
 }
@@ -168,6 +171,7 @@ fn extract_call_sites(program: &Program<'_>) -> JsAst {
         log_calls: ctx.log_calls,
         switch_sites: ctx.switch_sites,
         infinite_loops: ctx.infinite_loops,
+        dead_stores: ctx.dead_stores,
     }
 }
 
@@ -474,6 +478,423 @@ fn js_expr_is_process_exit(expr: &Expression<'_>) -> bool {
     false
 }
 
+// ── Dead-store extraction helpers for MAINT012 ───────────────────────────────
+
+/// A write site within a function scope.
+#[derive(Clone)]
+struct JsWrite {
+    name: String,
+    offset: u32,
+    span: Span,
+}
+
+/// Collect dead stores from a list of statements (a function body).
+///
+/// Returns a list of `JsDeadStore` entries for writes whose name does not
+/// appear in any later `Identifier` reference within the same function body.
+///
+/// Rules applied:
+/// - Skip names starting with `_`.
+/// - Skip names from destructuring patterns.
+/// - Skip `for (let x of …)` / `for (let x in …)` loop var declarators.
+/// - Flag only writes whose name is NOT referenced later.
+fn extract_dead_stores_from_fn_body(stmts: &[Statement<'_>]) -> Vec<JsDeadStore> {
+    let mut writes: Vec<JsWrite> = Vec::new();
+    let mut refs: Vec<(String, u32)> = Vec::new(); // (name, offset)
+
+    collect_writes_from_stmts(stmts, &mut writes, &mut refs, false);
+    collect_refs_from_stmts(stmts, &mut refs);
+
+    // Flag a write W to name N when either:
+    //   (a) no read of N occurs after W, OR
+    //   (b) a later write W2 to N occurs before the first read of N after W
+    //       (i.e. the value is overwritten before being read).
+    let mut dead: Vec<JsDeadStore> = Vec::new();
+    let mut emitted: std::collections::HashSet<String> = std::collections::HashSet::new();
+    for write in &writes {
+        if emitted.contains(&write.name) {
+            continue;
+        }
+        // Find the earliest read of this name after this write.
+        let first_read_after = refs
+            .iter()
+            .filter(|(n, off)| *n == write.name && *off > write.offset)
+            .map(|(_, off)| *off)
+            .min();
+        // Find the earliest subsequent write to this name after this write.
+        let next_write_after = writes
+            .iter()
+            .filter(|w| w.name == write.name && w.offset > write.offset)
+            .map(|w| w.offset)
+            .min();
+        let is_dead = match (first_read_after, next_write_after) {
+            // No read ever after this write → dead.
+            (None, _) => true,
+            // Read exists but a later write comes first → overwritten before read.
+            (Some(read_off), Some(write_off)) => write_off < read_off,
+            // Read exists and no overwriting write → value is used.
+            (Some(_), None) => false,
+        };
+        if is_dead {
+            emitted.insert(write.name.clone());
+            dead.push(JsDeadStore {
+                name: write.name.clone(),
+                span: write.span,
+            });
+        }
+    }
+    dead
+}
+
+/// Collect write sites from statements (only declarations and bare assignments).
+/// Does NOT recurse into nested function bodies.
+/// `in_for_var` indicates we are inside a for-of/for-in variable declaration.
+fn collect_writes_from_stmts(
+    stmts: &[Statement<'_>],
+    writes: &mut Vec<JsWrite>,
+    refs: &mut Vec<(String, u32)>,
+    in_for_var: bool,
+) {
+    for stmt in stmts {
+        collect_writes_from_stmt(stmt, writes, refs, in_for_var);
+    }
+}
+
+#[allow(clippy::too_many_lines)]
+fn collect_writes_from_stmt(
+    stmt: &Statement<'_>,
+    writes: &mut Vec<JsWrite>,
+    refs: &mut Vec<(String, u32)>,
+    in_for_var: bool,
+) {
+    match stmt {
+        Statement::VariableDeclaration(v) => {
+            for d in &v.declarations {
+                // Skip destructuring patterns.
+                let is_destructure =
+                    !matches!(&d.id, oxc_ast::ast::BindingPattern::BindingIdentifier(_));
+                if is_destructure {
+                    // Still collect refs from init.
+                    if let Some(init) = &d.init {
+                        collect_refs_from_expr(init, refs);
+                    }
+                    continue;
+                }
+                if let oxc_ast::ast::BindingPattern::BindingIdentifier(id) = &d.id {
+                    let name = id.name.as_str().to_string();
+                    // Skip underscore-prefixed and loop vars.
+                    if !name.starts_with('_') && !in_for_var {
+                        let span = oxc_span_to_core(v.span);
+                        writes.push(JsWrite {
+                            name,
+                            offset: v.span.start,
+                            span,
+                        });
+                    }
+                    if let Some(init) = &d.init {
+                        collect_refs_from_expr(init, refs);
+                    }
+                }
+            }
+        }
+        Statement::ExpressionStatement(es) => {
+            if let Expression::AssignmentExpression(a) = &es.expression {
+                // Bare identifier LHS assignment.
+                if let oxc_ast::ast::AssignmentTarget::AssignmentTargetIdentifier(id) = &a.left {
+                    let name = id.name.as_str().to_string();
+                    if !name.starts_with('_') {
+                        let span = oxc_span_to_core(a.span);
+                        writes.push(JsWrite {
+                            name,
+                            offset: a.span.start,
+                            span,
+                        });
+                    }
+                }
+                collect_refs_from_expr(&a.right, refs);
+            } else {
+                collect_refs_from_expr(&es.expression, refs);
+            }
+        }
+        // Recurse into control-flow blocks (but not into function bodies).
+        Statement::BlockStatement(b) => {
+            collect_writes_from_stmts(&b.body, writes, refs, in_for_var);
+        }
+        Statement::IfStatement(s) => {
+            collect_refs_from_expr(&s.test, refs);
+            collect_writes_from_stmt(&s.consequent, writes, refs, in_for_var);
+            if let Some(alt) = &s.alternate {
+                collect_writes_from_stmt(alt, writes, refs, in_for_var);
+            }
+        }
+        Statement::WhileStatement(s) => {
+            collect_refs_from_expr(&s.test, refs);
+            collect_writes_from_stmt(&s.body, writes, refs, in_for_var);
+        }
+        Statement::DoWhileStatement(s) => {
+            collect_refs_from_expr(&s.test, refs);
+            collect_writes_from_stmt(&s.body, writes, refs, in_for_var);
+        }
+        Statement::ForStatement(s) => {
+            if let Some(init) = &s.init {
+                if let oxc_ast::ast::ForStatementInit::VariableDeclaration(v) = init {
+                    for d in &v.declarations {
+                        if let oxc_ast::ast::BindingPattern::BindingIdentifier(id) = &d.id {
+                            let name = id.name.as_str().to_string();
+                            if !name.starts_with('_') {
+                                let span = oxc_span_to_core(v.span);
+                                writes.push(JsWrite {
+                                    name,
+                                    offset: v.span.start,
+                                    span,
+                                });
+                            }
+                        }
+                        if let Some(e) = &d.init {
+                            collect_refs_from_expr(e, refs);
+                        }
+                    }
+                } else if let Some(e) = init.as_expression() {
+                    collect_refs_from_expr(e, refs);
+                }
+            }
+            if let Some(test) = &s.test {
+                collect_refs_from_expr(test, refs);
+            }
+            if let Some(update) = &s.update {
+                collect_refs_from_expr(update, refs);
+            }
+            collect_writes_from_stmt(&s.body, writes, refs, in_for_var);
+        }
+        // for-of and for-in: skip the loop variable declaration.
+        Statement::ForOfStatement(s) => {
+            collect_refs_from_expr(&s.right, refs);
+            collect_writes_from_stmt(&s.body, writes, refs, false);
+        }
+        Statement::ForInStatement(s) => {
+            collect_refs_from_expr(&s.right, refs);
+            collect_writes_from_stmt(&s.body, writes, refs, false);
+        }
+        Statement::TryStatement(s) => {
+            collect_writes_from_stmts(&s.block.body, writes, refs, in_for_var);
+            if let Some(handler) = &s.handler {
+                collect_writes_from_stmts(&handler.body.body, writes, refs, in_for_var);
+            }
+            if let Some(fin) = &s.finalizer {
+                collect_writes_from_stmts(&fin.body, writes, refs, in_for_var);
+            }
+        }
+        Statement::SwitchStatement(s) => {
+            collect_refs_from_expr(&s.discriminant, refs);
+            for case in &s.cases {
+                if let Some(test) = &case.test {
+                    collect_refs_from_expr(test, refs);
+                }
+                collect_writes_from_stmts(&case.consequent, writes, refs, in_for_var);
+            }
+        }
+        Statement::ReturnStatement(r) => {
+            if let Some(arg) = &r.argument {
+                collect_refs_from_expr(arg, refs);
+            }
+        }
+        Statement::ThrowStatement(t) => collect_refs_from_expr(&t.argument, refs),
+        Statement::LabeledStatement(l) => {
+            collect_writes_from_stmt(&l.body, writes, refs, in_for_var);
+        }
+        // STOP at nested function / class bodies, and ignore everything else.
+        _ => {}
+    }
+}
+
+/// Collect all `Identifier` references (reads) from an expression, recursively.
+/// Does NOT recurse into nested function bodies (arrow fns, function exprs).
+fn collect_refs_from_expr(expr: &Expression<'_>, refs: &mut Vec<(String, u32)>) {
+    match expr {
+        Expression::Identifier(id) => {
+            refs.push((id.name.as_str().to_string(), id.span.start));
+        }
+        Expression::CallExpression(c) => {
+            collect_refs_from_expr(&c.callee, refs);
+            for arg in &c.arguments {
+                if let Some(e) = arg.as_expression() {
+                    collect_refs_from_expr(e, refs);
+                }
+            }
+        }
+        Expression::NewExpression(n) => {
+            collect_refs_from_expr(&n.callee, refs);
+            for arg in &n.arguments {
+                if let Some(e) = arg.as_expression() {
+                    collect_refs_from_expr(e, refs);
+                }
+            }
+        }
+        Expression::StaticMemberExpression(m) => {
+            collect_refs_from_expr(&m.object, refs);
+            // property is not a variable ref
+        }
+        Expression::ComputedMemberExpression(m) => {
+            collect_refs_from_expr(&m.object, refs);
+            collect_refs_from_expr(&m.expression, refs);
+        }
+        Expression::AssignmentExpression(a) => {
+            // RHS is a load.
+            collect_refs_from_expr(&a.right, refs);
+            // LHS: if computed, also a load.
+            if let oxc_ast::ast::AssignmentTarget::ComputedMemberExpression(m) = &a.left {
+                collect_refs_from_expr(&m.object, refs);
+                collect_refs_from_expr(&m.expression, refs);
+            } else if let oxc_ast::ast::AssignmentTarget::StaticMemberExpression(m) = &a.left {
+                collect_refs_from_expr(&m.object, refs);
+            }
+        }
+        Expression::BinaryExpression(b) => {
+            collect_refs_from_expr(&b.left, refs);
+            collect_refs_from_expr(&b.right, refs);
+        }
+        Expression::LogicalExpression(l) => {
+            collect_refs_from_expr(&l.left, refs);
+            collect_refs_from_expr(&l.right, refs);
+        }
+        Expression::UnaryExpression(u) => collect_refs_from_expr(&u.argument, refs),
+        Expression::ConditionalExpression(c) => {
+            collect_refs_from_expr(&c.test, refs);
+            collect_refs_from_expr(&c.consequent, refs);
+            collect_refs_from_expr(&c.alternate, refs);
+        }
+        Expression::SequenceExpression(s) => {
+            for e in &s.expressions {
+                collect_refs_from_expr(e, refs);
+            }
+        }
+        Expression::ArrayExpression(a) => {
+            for elt in &a.elements {
+                if let Some(e) = elt.as_expression() {
+                    collect_refs_from_expr(e, refs);
+                }
+            }
+        }
+        Expression::ObjectExpression(o) => {
+            for prop in &o.properties {
+                if let oxc_ast::ast::ObjectPropertyKind::ObjectProperty(p) = prop {
+                    collect_refs_from_expr(&p.value, refs);
+                }
+            }
+        }
+        Expression::TemplateLiteral(t) => {
+            for e in &t.expressions {
+                collect_refs_from_expr(e, refs);
+            }
+        }
+        Expression::TaggedTemplateExpression(t) => {
+            collect_refs_from_expr(&t.tag, refs);
+            for e in &t.quasi.expressions {
+                collect_refs_from_expr(e, refs);
+            }
+        }
+        Expression::AwaitExpression(a) => collect_refs_from_expr(&a.argument, refs),
+        Expression::YieldExpression(y) => {
+            if let Some(arg) = &y.argument {
+                collect_refs_from_expr(arg, refs);
+            }
+        }
+        Expression::ParenthesizedExpression(p) => collect_refs_from_expr(&p.expression, refs),
+        // TS wrappers.
+        Expression::TSAsExpression(e) => collect_refs_from_expr(&e.expression, refs),
+        Expression::TSSatisfiesExpression(e) => collect_refs_from_expr(&e.expression, refs),
+        Expression::TSNonNullExpression(e) => collect_refs_from_expr(&e.expression, refs),
+        Expression::TSTypeAssertion(e) => collect_refs_from_expr(&e.expression, refs),
+        Expression::TSInstantiationExpression(e) => collect_refs_from_expr(&e.expression, refs),
+        // STOP at nested function bodies — they have their own scope.
+        // Everything else has no sub-expressions of interest.
+        _ => {}
+    }
+}
+
+/// Collect all `Identifier` references from a list of statements.
+fn collect_refs_from_stmts(stmts: &[Statement<'_>], refs: &mut Vec<(String, u32)>) {
+    for stmt in stmts {
+        collect_refs_from_stmt(stmt, refs);
+    }
+}
+
+fn collect_refs_from_stmt(stmt: &Statement<'_>, refs: &mut Vec<(String, u32)>) {
+    match stmt {
+        Statement::ExpressionStatement(es) => collect_refs_from_expr(&es.expression, refs),
+        Statement::ReturnStatement(r) => {
+            if let Some(arg) = &r.argument {
+                collect_refs_from_expr(arg, refs);
+            }
+        }
+        Statement::VariableDeclaration(v) => {
+            for d in &v.declarations {
+                if let Some(init) = &d.init {
+                    collect_refs_from_expr(init, refs);
+                }
+            }
+        }
+        Statement::BlockStatement(b) => collect_refs_from_stmts(&b.body, refs),
+        Statement::IfStatement(s) => {
+            collect_refs_from_expr(&s.test, refs);
+            collect_refs_from_stmt(&s.consequent, refs);
+            if let Some(alt) = &s.alternate {
+                collect_refs_from_stmt(alt, refs);
+            }
+        }
+        Statement::WhileStatement(s) => {
+            collect_refs_from_expr(&s.test, refs);
+            collect_refs_from_stmt(&s.body, refs);
+        }
+        Statement::DoWhileStatement(s) => {
+            collect_refs_from_expr(&s.test, refs);
+            collect_refs_from_stmt(&s.body, refs);
+        }
+        Statement::ForStatement(s) => {
+            if let Some(Some(e)) = s.init.as_ref().map(|i| i.as_expression()) {
+                collect_refs_from_expr(e, refs);
+            }
+            if let Some(test) = &s.test {
+                collect_refs_from_expr(test, refs);
+            }
+            if let Some(update) = &s.update {
+                collect_refs_from_expr(update, refs);
+            }
+            collect_refs_from_stmt(&s.body, refs);
+        }
+        Statement::ForOfStatement(s) => {
+            collect_refs_from_expr(&s.right, refs);
+            collect_refs_from_stmt(&s.body, refs);
+        }
+        Statement::ForInStatement(s) => {
+            collect_refs_from_expr(&s.right, refs);
+            collect_refs_from_stmt(&s.body, refs);
+        }
+        Statement::TryStatement(s) => {
+            collect_refs_from_stmts(&s.block.body, refs);
+            if let Some(handler) = &s.handler {
+                collect_refs_from_stmts(&handler.body.body, refs);
+            }
+            if let Some(fin) = &s.finalizer {
+                collect_refs_from_stmts(&fin.body, refs);
+            }
+        }
+        Statement::SwitchStatement(s) => {
+            collect_refs_from_expr(&s.discriminant, refs);
+            for case in &s.cases {
+                if let Some(test) = &case.test {
+                    collect_refs_from_expr(test, refs);
+                }
+                collect_refs_from_stmts(&case.consequent, refs);
+            }
+        }
+        Statement::ThrowStatement(t) => collect_refs_from_expr(&t.argument, refs),
+        Statement::LabeledStatement(l) => collect_refs_from_stmt(&l.body, refs),
+        // STOP at nested function / class bodies, and ignore everything else.
+        _ => {}
+    }
+}
+
 #[allow(clippy::too_many_lines)]
 fn walk_stmt(stmt: &Statement<'_>, out: &mut WalkCtx) {
     match stmt {
@@ -639,6 +1060,9 @@ fn walk_stmt(stmt: &Statement<'_>, out: &mut WalkCtx) {
             let params = collect_js_fn_params(&f.params);
             out.current_fn_params.push(params);
             if let Some(body) = &f.body {
+                // MAINT012: extract dead stores for this function scope.
+                let dead = extract_dead_stores_from_fn_body(&body.statements);
+                out.dead_stores.extend(dead);
                 for s in &body.statements {
                     walk_stmt(s, out);
                 }
@@ -656,6 +1080,9 @@ fn walk_stmt(stmt: &Statement<'_>, out: &mut WalkCtx) {
                     // SEC015: push method params for log-injection param tracking.
                     let params = collect_js_fn_params(&m.value.params);
                     out.current_fn_params.push(params);
+                    // MAINT012: extract dead stores for this method scope.
+                    let dead = extract_dead_stores_from_fn_body(&body.statements);
+                    out.dead_stores.extend(dead);
                     for s in &body.statements {
                         walk_stmt(s, out);
                     }
@@ -690,6 +1117,9 @@ fn walk_decl(decl: &oxc_ast::ast::Declaration<'_>, out: &mut WalkCtx) {
             let params = collect_js_fn_params(&f.params);
             out.current_fn_params.push(params);
             if let Some(body) = &f.body {
+                // MAINT012: extract dead stores for this exported function scope.
+                let dead = extract_dead_stores_from_fn_body(&body.statements);
+                out.dead_stores.extend(dead);
                 for s in &body.statements {
                     walk_stmt(s, out);
                 }
@@ -703,6 +1133,9 @@ fn walk_decl(decl: &oxc_ast::ast::Declaration<'_>, out: &mut WalkCtx) {
                 {
                     let params = collect_js_fn_params(&m.value.params);
                     out.current_fn_params.push(params);
+                    // MAINT012: extract dead stores for this exported class method scope.
+                    let dead = extract_dead_stores_from_fn_body(&body.statements);
+                    out.dead_stores.extend(dead);
                     for s in &body.statements {
                         walk_stmt(s, out);
                     }
@@ -856,6 +1289,9 @@ fn walk_expr(expr: &Expression<'_>, out: &mut WalkCtx) {
             out.at_top_level = false;
             let params = collect_js_fn_params(&arrow.params);
             out.current_fn_params.push(params);
+            // MAINT012: extract dead stores for this arrow function scope.
+            let dead = extract_dead_stores_from_fn_body(&arrow.body.statements);
+            out.dead_stores.extend(dead);
             for stmt in &arrow.body.statements {
                 walk_stmt(stmt, out);
             }
@@ -868,6 +1304,9 @@ fn walk_expr(expr: &Expression<'_>, out: &mut WalkCtx) {
             let params = collect_js_fn_params(&f.params);
             out.current_fn_params.push(params);
             if let Some(body) = &f.body {
+                // MAINT012: extract dead stores for this function expression scope.
+                let dead = extract_dead_stores_from_fn_body(&body.statements);
+                out.dead_stores.extend(dead);
                 for s in &body.statements {
                     walk_stmt(s, out);
                 }
@@ -884,6 +1323,9 @@ fn walk_expr(expr: &Expression<'_>, out: &mut WalkCtx) {
                 {
                     let params = collect_js_fn_params(&m.value.params);
                     out.current_fn_params.push(params);
+                    // MAINT012: extract dead stores for this class-expression method.
+                    let dead = extract_dead_stores_from_fn_body(&body.statements);
+                    out.dead_stores.extend(dead);
                     for s in &body.statements {
                         walk_stmt(s, out);
                     }

@@ -17,6 +17,7 @@ pub mod active_debug_code;
 pub mod bind_all_interfaces;
 pub mod chain;
 pub mod ci;
+pub mod dead_store;
 pub mod eco;
 pub mod empty_block;
 pub mod external;

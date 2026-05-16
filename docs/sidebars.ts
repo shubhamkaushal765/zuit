@@ -207,6 +207,7 @@ const sidebars: SidebarsConfig = {
             'rules/MAINT009-missing-default-case',
             'rules/MAINT010-infinite-loop-no-exit',
             'rules/MAINT011-active-debug-code',
+            'rules/MAINT012-dead-store',
             'rules/MAINT013-empty-block',
             'rules/MAINT014-commented-out-code',
           ],

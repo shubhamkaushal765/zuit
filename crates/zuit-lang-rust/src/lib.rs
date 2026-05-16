@@ -100,6 +100,7 @@ pub fn register(registry: &mut Registry) {
     registry.add_analyzer(Box::new(
         analyzers::infinite_loop_no_exit::InfiniteLoopNoExitAnalyzer,
     ));
+    registry.add_analyzer(Box::new(analyzers::dead_store::RustDeadStoreAnalyzer));
 
     // SOUND family
     registry.add_analyzer(Box::new(
@@ -229,8 +230,8 @@ mod tests {
         let mut registry = Registry::new();
         register(&mut registry);
         assert_eq!(registry.language_count(), 1);
-        // 1 (SEC101) + 1 (MAINT013) + 1 (MAINT009) + 1 (MAINT010) + 6 SOUND + 10 PKG + 5 HEALTH
-        // + 4 CHAIN + 3 PERF + 4 ECO + 5 CI + 4 external + 1 (SEC015) = 49 total.
-        assert_eq!(registry.analyzer_count(), 49);
+        // 1 (SEC101) + 1 (MAINT013) + 1 (MAINT009) + 1 (MAINT010) + 1 (MAINT012) + 6 SOUND
+        // + 10 PKG + 5 HEALTH + 4 CHAIN + 3 PERF + 4 ECO + 5 CI + 4 external + 1 (SEC015) = 50 total.
+        assert_eq!(registry.analyzer_count(), 50);
     }
 }

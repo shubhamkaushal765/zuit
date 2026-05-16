@@ -250,6 +250,34 @@ pub(crate) struct RustAst {
     /// `return`, or diverging macro (`panic!`, `unreachable!`, `todo!`,
     /// `unimplemented!`).
     pub(crate) infinite_loops: Vec<Span>,
+
+    /// Dead `let` binding sites for `MAINT012-dead-store`.
+    ///
+    /// Populated by [`Extractor`] for each function body.  A binding is dead
+    /// when the bound name (without leading `_`) does not appear in the
+    /// stringified tail of the enclosing function block after the `let` site.
+    ///
+    /// Only simple immutable `let name = expr;` patterns are considered (no
+    /// `let mut`, no destructuring, no shadowing chains).  See the dead-store
+    /// analyzer for the full exclusion list.
+    pub(crate) dead_stores: Vec<RustDeadStore>,
+
+    /// `true` if the file contains any non-empty macro body (`Expr::Macro`
+    /// with a non-empty token stream).
+    ///
+    /// Used by the Rust dead-store analyzer to early-return on files with
+    /// macros, since macro bodies are opaque and may silently consume variable
+    /// names without any syntactic `Identifier` reference.
+    pub(crate) has_macro_body: bool,
+}
+
+/// A dead-store site extracted for `MAINT012-dead-store` (Rust).
+#[derive(Debug, Clone)]
+pub(crate) struct RustDeadStore {
+    /// The variable name that is written but never read.
+    pub(crate) name: String,
+    /// Byte span of the `let` binding.
+    pub(crate) span: Span,
 }
 
 // RustAst contains only Vec<UnsafeItem> where UnsafeItem holds Span (&'static str
@@ -551,6 +579,12 @@ struct Extractor<'src> {
     /// Spans of infinite `loop {}` bodies for `MAINT010-infinite-loop-no-exit`.
     infinite_loops: Vec<Span>,
 
+    /// Dead let-binding sites for `MAINT012-dead-store`.
+    dead_stores: Vec<RustDeadStore>,
+
+    /// Whether any non-empty macro body was encountered.
+    has_macro_body: bool,
+
     source: &'src SourceFile,
     /// `true` while inside an `extern "…"` block.
     in_foreign_mod: bool,
@@ -581,6 +615,8 @@ impl<'src> Extractor<'src> {
             log_calls: Vec::new(),
             match_sites: Vec::new(),
             infinite_loops: Vec::new(),
+            dead_stores: Vec::new(),
+            has_macro_body: false,
             source,
             in_foreign_mod: false,
             pending_pub_struct_raw_ptr: Vec::new(),
@@ -768,6 +804,10 @@ impl<'ast> Visit<'ast> for Extractor<'_> {
             self.unsafe_with_parser_calls.push(span);
         }
 
+        // MAINT012: scan for dead let bindings in this function body.
+        let dead = scan_dead_stores_in_block(&node.block, self.source);
+        self.dead_stores.extend(dead);
+
         // SEC015: push this function's parameter names for log-injection detection.
         let params = collect_sig_params(&node.sig);
         self.current_fn_params.push(params);
@@ -822,6 +862,10 @@ impl<'ast> Visit<'ast> for Extractor<'_> {
             self.unsafe_with_parser_calls.push(span);
         }
 
+        // MAINT012: scan for dead let bindings in this impl method body.
+        let dead = scan_dead_stores_in_block(&node.block, self.source);
+        self.dead_stores.extend(dead);
+
         // SEC015: push this function's parameter names for log-injection detection.
         let params = collect_sig_params(&node.sig);
         self.current_fn_params.push(params);
@@ -833,6 +877,13 @@ impl<'ast> Visit<'ast> for Extractor<'_> {
         if node.sig.unsafety.is_some() {
             self.push_unsafe_item(node.sig.fn_token.span, "fn");
         }
+
+        // MAINT012: scan for dead let bindings in trait method default bodies.
+        if let Some(body) = &node.default {
+            let dead = scan_dead_stores_in_block(body, self.source);
+            self.dead_stores.extend(dead);
+        }
+
         // SEC015: push this function's parameter names for log-injection detection.
         let params = collect_sig_params(&node.sig);
         self.current_fn_params.push(params);
@@ -954,6 +1005,7 @@ impl<'ast> Visit<'ast> for Extractor<'_> {
 
     // MAINT011: detect debug-code macros (dbg!, println!, eprintln!).
     // SEC015: detect log-injection in logging macros.
+    // MAINT012: track whether any non-empty macro body appears (for dead-store suppression).
     fn visit_macro(&mut self, node: &'ast syn::Macro) {
         let name = node
             .path
@@ -985,6 +1037,12 @@ impl<'ast> Visit<'ast> for Extractor<'_> {
                 enclosing_fn_params,
                 span,
             });
+        }
+
+        // MAINT012: if this macro invocation has a non-empty token stream,
+        // mark the file as having a macro body (opaque to dead-store analysis).
+        if !node.tokens.is_empty() {
+            self.has_macro_body = true;
         }
 
         syn::visit::visit_macro(self, node);
@@ -1189,6 +1247,163 @@ impl<'ast> Visit<'ast> for LoopExitScanner {
     }
 }
 
+// ── Dead-store scanner for MAINT012 ──────────────────────────────────────────
+
+/// Scans a function body block for simple immutable `let name = expr;` bindings
+/// and checks whether `name` appears in the token-stream text **after** the let
+/// site.  Only `Pat::Ident` patterns with no `mutability` qualifier are
+/// considered; destructuring and `let mut` patterns are skipped.
+///
+/// The scan is done by:
+/// 1. Collecting all `syn::Local` nodes whose pattern is a simple `Pat::Ident`
+///    and whose init is present (i.e. `let name = expr;`, not `let name;`).
+/// 2. Skipping names that start with `_`.
+/// 3. Skipping bindings where the same name appears in a *later* binding
+///    (shadowing chain): the shadowed binding is not flagged.
+/// 4. For each remaining binding, searching for the bare identifier string in
+///    the source text after the binding's byte offset.  If absent, the binding
+///    is dead.
+fn scan_dead_stores_in_block(block: &syn::Block, source: &SourceFile) -> Vec<RustDeadStore> {
+    /// A candidate binding: name + byte offset of the identifier in source.
+    struct Candidate {
+        name: String,
+        let_offset: u32,
+        span: Span,
+    }
+
+    // Walk the block and collect simple let bindings.
+    let mut all_lets: Vec<Candidate> = Vec::new();
+    for stmt in &block.stmts {
+        if let syn::Stmt::Local(local) = stmt {
+            // Must have an initialiser.
+            if local.init.is_none() {
+                continue;
+            }
+            // Must be a simple Pat::Ident with no mutability qualifier.
+            let pat_ident = match &local.pat {
+                syn::Pat::Ident(pi) if pi.mutability.is_none() => pi,
+                syn::Pat::Type(pt) => {
+                    if let syn::Pat::Ident(pi) = &*pt.pat {
+                        if pi.mutability.is_some() {
+                            continue;
+                        }
+                        pi
+                    } else {
+                        continue;
+                    }
+                }
+                _ => continue,
+            };
+            let name = pat_ident.ident.to_string();
+            // Skip leading-underscore names.
+            if name.starts_with('_') {
+                continue;
+            }
+            let raw_span = pat_ident.ident.span();
+            let byte_span = proc_span_to_byte_span(raw_span, source);
+            all_lets.push(Candidate {
+                name,
+                let_offset: byte_span.start.0,
+                span: byte_span,
+            });
+        }
+    }
+
+    if all_lets.is_empty() {
+        return Vec::new();
+    }
+
+    // Build the set of names that are shadowed (appear in a later let binding
+    // for the same name).  We do NOT flag a binding if the same name is bound
+    // again later in the same block (shadowing pattern).
+    let shadowed: std::collections::HashSet<String> = {
+        let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
+        let mut shadowed = std::collections::HashSet::new();
+        // Walk in reverse order; if a name appears twice, the earlier one is shadowed.
+        for c in all_lets.iter().rev() {
+            if !seen.insert(c.name.clone()) {
+                // Name was already seen (later occurrence) — the current one is shadowed.
+                shadowed.insert(c.name.clone());
+            }
+        }
+        shadowed
+    };
+
+    // Get the source text.
+    let source_text = source.as_str();
+    let source_bytes = source_text.as_bytes();
+
+    let mut dead: Vec<RustDeadStore> = Vec::new();
+    let mut emitted: std::collections::HashSet<String> = std::collections::HashSet::new();
+
+    for candidate in &all_lets {
+        // Skip shadowed bindings.
+        if shadowed.contains(&candidate.name) {
+            continue;
+        }
+        if emitted.contains(&candidate.name) {
+            continue;
+        }
+
+        // Search for the bare identifier name in the source text AFTER the
+        // let site (i.e. byte offset > candidate.let_offset).
+        let search_start = (candidate.let_offset as usize).min(source_bytes.len());
+        // Move past the binding itself to avoid matching the binding's own identifier.
+        // Find the next occurrence of the name after `search_start`.
+        let tail = &source_text[search_start..];
+
+        // We need to find `name` as a whole word (not a substring of another identifier).
+        let found = find_bare_ident_after(tail, &candidate.name);
+
+        if !found {
+            emitted.insert(candidate.name.clone());
+            dead.push(RustDeadStore {
+                name: candidate.name.clone(),
+                span: candidate.span,
+            });
+        }
+    }
+
+    dead
+}
+
+/// Checks whether `name` appears as a bare (word-boundary-delimited) identifier
+/// anywhere in `text` **after** the first occurrence of `name` itself.
+///
+/// Strategy: skip the first occurrence of `name` (the binding site), then
+/// search for any later occurrence that is surrounded by non-identifier chars.
+fn find_bare_ident_after(text: &str, name: &str) -> bool {
+    let bytes = text.as_bytes();
+    let name_bytes = name.as_bytes();
+    let nlen = name_bytes.len();
+
+    let mut pos = 0usize;
+    let mut first_skipped = false;
+
+    while pos + nlen <= bytes.len() {
+        if bytes[pos..pos + nlen] == *name_bytes {
+            // Check word boundaries.
+            let before_ok = pos == 0 || !is_ident_char(bytes[pos - 1]);
+            let after_ok = pos + nlen >= bytes.len() || !is_ident_char(bytes[pos + nlen]);
+            if before_ok && after_ok {
+                if first_skipped {
+                    return true;
+                }
+                first_skipped = true;
+                pos += nlen;
+                continue;
+            }
+        }
+        pos += 1;
+    }
+    false
+}
+
+/// Returns `true` if `c` is a valid Rust identifier character (ASCII subset).
+fn is_ident_char(c: u8) -> bool {
+    c.is_ascii_alphanumeric() || c == b'_'
+}
+
 // ── entry point ───────────────────────────────────────────────────────────────
 
 /// Parses Rust source text using `syn` and returns a [`ParsedFile`].
@@ -1240,6 +1455,8 @@ pub(crate) fn parse(source: Arc<SourceFile>) -> Result<ParsedFile, ParseError> {
             pub_struct_with_raw_ptr,
             match_sites: extractor.match_sites,
             infinite_loops: extractor.infinite_loops,
+            dead_stores: extractor.dead_stores,
+            has_macro_body: extractor.has_macro_body,
         })
     };
 
