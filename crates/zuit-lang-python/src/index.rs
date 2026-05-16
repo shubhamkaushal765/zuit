@@ -24,7 +24,8 @@ use rustpython_parser::ast::{
 
 use zuit_core::{
     ByteOffset, Comment, DocComment, FunctionKind, FunctionLike, Import, ModuleDecl, NodeId,
-    SemanticIndex, Span, StringLit, Suppression, TypeDecl, Visibility, parse_suppression_directive,
+    RegexLiteral, SemanticIndex, Span, StringLit, Suppression, TypeDecl, Visibility,
+    parse_suppression_directive,
 };
 
 use crate::complexity;
@@ -236,14 +237,17 @@ fn walk_stmt(
         Stmt::Expr(expr_stmt) => {
             // Collect non-docstring string literals at statement level.
             collect_string_literals_from_expr(&expr_stmt.value, ctx, false);
+            collect_regex_literals_from_expr(&expr_stmt.value, ctx);
         }
         Stmt::Assign(assign) => {
             // Collect string literals and lambdas from assignment values.
             collect_string_literals_from_expr(&assign.value, ctx, false);
+            collect_regex_literals_from_expr(&assign.value, ctx);
         }
         Stmt::AnnAssign(assign) => {
             if let Some(value) = &assign.value {
                 collect_string_literals_from_expr(value, ctx, false);
+                collect_regex_literals_from_expr(value, ctx);
             }
         }
         // All other statement kinds don't introduce new named items.
@@ -612,6 +616,105 @@ fn collect_lambdas_and_strings(expr: &Expr, ctx: &mut IndexCtx) {
     collect_string_literals_from_expr(expr, ctx, false);
 }
 
+/// The `re` module methods that accept a regex pattern as their first positional
+/// argument.
+const RE_METHODS: &[&str] = &[
+    "compile",
+    "match",
+    "search",
+    "findall",
+    "fullmatch",
+    "sub",
+    "subn",
+    "split",
+    "finditer",
+];
+
+/// Scans an expression for `re.<method>(<str>, ...)` calls and pushes the
+/// first string argument as a [`RegexLiteral`] into `ctx.index.regex_literals`.
+///
+/// Recurses into sub-expressions so that regex calls nested inside function
+/// arguments, list literals, etc. are also caught.
+fn collect_regex_literals_from_expr(expr: &Expr, ctx: &mut IndexCtx) {
+    match expr {
+        Expr::Call(call) => {
+            // Check for `re.<method>(<str-literal>, ...)`.
+            if let Expr::Attribute(attr) = call.func.as_ref()
+                && let Expr::Name(name) = attr.value.as_ref()
+                && name.id.as_str() == "re"
+                && RE_METHODS.iter().any(|m| *m == attr.attr.as_str())
+                && let Some(first_arg) = call.args.first()
+                && let Expr::Constant(c) = first_arg
+                && let rustpython_parser::ast::Constant::Str(text) = &c.value
+            {
+                let span = IndexCtx::text_range_to_span(call.range());
+                let id = ctx.alloc_id();
+                ctx.index.regex_literals.push(RegexLiteral {
+                    id,
+                    value: text.clone(),
+                    span,
+                });
+            }
+            // Always recurse into arguments to catch nested calls.
+            collect_regex_literals_from_expr(&call.func, ctx);
+            for arg in &call.args {
+                collect_regex_literals_from_expr(arg, ctx);
+            }
+            for kw in &call.keywords {
+                collect_regex_literals_from_expr(&kw.value, ctx);
+            }
+        }
+        Expr::BoolOp(e) => {
+            for v in &e.values {
+                collect_regex_literals_from_expr(v, ctx);
+            }
+        }
+        Expr::BinOp(e) => {
+            collect_regex_literals_from_expr(&e.left, ctx);
+            collect_regex_literals_from_expr(&e.right, ctx);
+        }
+        Expr::IfExp(e) => {
+            collect_regex_literals_from_expr(&e.test, ctx);
+            collect_regex_literals_from_expr(&e.body, ctx);
+            collect_regex_literals_from_expr(&e.orelse, ctx);
+        }
+        Expr::List(e) => {
+            for elt in &e.elts {
+                collect_regex_literals_from_expr(elt, ctx);
+            }
+        }
+        Expr::Tuple(e) => {
+            for elt in &e.elts {
+                collect_regex_literals_from_expr(elt, ctx);
+            }
+        }
+        Expr::Set(e) => {
+            for elt in &e.elts {
+                collect_regex_literals_from_expr(elt, ctx);
+            }
+        }
+        Expr::Subscript(e) => {
+            collect_regex_literals_from_expr(&e.value, ctx);
+            collect_regex_literals_from_expr(&e.slice, ctx);
+        }
+        Expr::Starred(e) => {
+            collect_regex_literals_from_expr(&e.value, ctx);
+        }
+        Expr::UnaryOp(e) => {
+            collect_regex_literals_from_expr(&e.operand, ctx);
+        }
+        Expr::Await(e) => collect_regex_literals_from_expr(&e.value, ctx),
+        Expr::Yield(e) => {
+            if let Some(v) = &e.value {
+                collect_regex_literals_from_expr(v, ctx);
+            }
+        }
+        Expr::YieldFrom(e) => collect_regex_literals_from_expr(&e.value, ctx),
+        Expr::NamedExpr(e) => collect_regex_literals_from_expr(&e.value, ctx),
+        _ => {}
+    }
+}
+
 // ── comments extraction ───────────────────────────────────────────────────
 
 /// Extracts `#` line comments from the source text.
@@ -851,5 +954,39 @@ mod tests {
     fn regular_comment_does_not_produce_suppression_python() {
         let idx = parse_and_index("# TODO: fix this\ndef foo():\n    pass\n");
         assert!(idx.suppressions.is_empty());
+    }
+
+    // ── regex literal collection (SEC014-redos-regex) ─────────────────────────
+
+    #[test]
+    fn re_compile_produces_regex_literal() {
+        let idx = parse_and_index("import re\nre.compile(r\"(a+)+\")\n");
+        assert_eq!(
+            idx.regex_literals.len(),
+            1,
+            "expected 1 regex literal, got {:?}",
+            idx.regex_literals
+                .iter()
+                .map(|r| &r.value)
+                .collect::<Vec<_>>()
+        );
+        assert_eq!(idx.regex_literals[0].value, "(a+)+");
+    }
+
+    #[test]
+    fn re_search_produces_regex_literal() {
+        let idx = parse_and_index("import re\nre.search(\"abc+\", text)\n");
+        assert_eq!(idx.regex_literals.len(), 1);
+        assert_eq!(idx.regex_literals[0].value, "abc+");
+    }
+
+    #[test]
+    fn non_re_call_does_not_produce_regex_literal() {
+        let idx = parse_and_index("import os\nos.path.join(\"a\", \"b\")\n");
+        assert!(
+            idx.regex_literals.is_empty(),
+            "non-re call must not produce regex literals, got {:?}",
+            idx.regex_literals
+        );
     }
 }

@@ -3302,6 +3302,7 @@ dependencies = [
  "criterion",
  "proptest",
  "regex",
+ "regex-syntax",
  "tempfile",
  "thiserror",
  "zuit-core",

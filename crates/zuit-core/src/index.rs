@@ -181,6 +181,22 @@ pub struct Suppression {
     pub file_scoped: bool,
 }
 
+/// A regex literal extracted from source for SEC014-redos-regex.
+///
+/// Each language frontend populates [`SemanticIndex::regex_literals`] by
+/// detecting common regex construction patterns (`Regex::new`, `re.compile`,
+/// `/pattern/flags`, etc.). The [`crate`]-level `RedosAnalyzer` then walks
+/// the `regex_syntax` AST to check for catastrophic backtracking patterns.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RegexLiteral {
+    /// Frontend-assigned node identifier.
+    pub id: NodeId,
+    /// The raw pattern source (without slashes/quotes).
+    pub value: String,
+    /// Byte span of the regex literal (or its enclosing call).
+    pub span: Span,
+}
+
 /// A documentation comment (Rust `///` / `/** */`, Python docstring, etc.).
 ///
 /// Stored separately from [`Comment`] because doc comments attach to items and
@@ -218,6 +234,8 @@ pub struct SemanticIndex {
     pub doc_comments: Vec<DocComment>,
     /// All suppression directives found in the file.
     pub suppressions: Vec<Suppression>,
+    /// All regex literals found in the file, for SEC014-redos-regex.
+    pub regex_literals: Vec<RegexLiteral>,
 }
 
 impl SemanticIndex {
@@ -294,6 +312,19 @@ mod tests {
         assert!(index.comments.is_empty());
         assert!(index.doc_comments.is_empty());
         assert!(index.suppressions.is_empty());
+        assert!(index.regex_literals.is_empty());
+    }
+
+    #[test]
+    fn regex_literals_in_index() {
+        let mut index = SemanticIndex::new();
+        index.regex_literals.push(RegexLiteral {
+            id: NodeId(99),
+            value: "(a+)+".to_string(),
+            span: dummy_span(),
+        });
+        assert_eq!(index.regex_literals.len(), 1);
+        assert_eq!(index.regex_literals[0].value, "(a+)+");
     }
 
     // ── parse_suppression_directive tests ─────────────────────────────────────

@@ -28,6 +28,7 @@
 //! | `SEC010-ssrf` | [`SsrfAnalyzer`] | Security |
 //! | `SEC011-cors-permissive` | [`CorsPermissiveAnalyzer`] | Security |
 //! | `DEP001-vulnerable-deps` | [`VulnerableDepsAnalyzer`] | Security |
+//! | `SEC014-redos-regex` | [`RedosAnalyzer`] | Security |
 //! | `CPLX001-fan-out` | [`FanOutAnalyzer`] | Complexity |
 //! | `CPLX002-cyclic-deps` | [`CyclicDepsAnalyzer`] | Complexity |
 //! | `CPLX003-duplicate-code` | [`DuplicateCodeAnalyzer`] | Complexity |
@@ -80,6 +81,7 @@ pub mod no_asserts;
 pub mod open_redirect;
 pub mod path_traversal;
 pub mod public_api_undoc;
+pub mod redos;
 pub mod return_complexity;
 pub mod shared_mutable_state;
 pub mod shell_injection;
@@ -114,6 +116,7 @@ pub use no_asserts::NoAssertsAnalyzer;
 pub use open_redirect::OpenRedirectAnalyzer;
 pub use path_traversal::PathTraversalAnalyzer;
 pub use public_api_undoc::PublicApiUndocAnalyzer;
+pub use redos::RedosAnalyzer;
 pub use return_complexity::ReturnComplexityAnalyzer;
 pub use shared_mutable_state::SharedMutableStateAnalyzer;
 pub use shell_injection::ShellInjectionAnalyzer;
@@ -142,7 +145,7 @@ pub use weak_crypto::WeakCryptoAnalyzer;
 ///    [`WeakCryptoAnalyzer`], [`InsecureDeserAnalyzer`], [`SqlInjectionAnalyzer`],
 ///    [`PathTraversalAnalyzer`], [`CsrfMissingAnalyzer`],
 ///    [`OpenRedirectAnalyzer`], [`SsrfAnalyzer`], [`CorsPermissiveAnalyzer`],
-///    [`VulnerableDepsAnalyzer`].
+///    [`VulnerableDepsAnalyzer`], [`RedosAnalyzer`].
 /// 4. Complexity: [`FanOutAnalyzer`], [`CyclicDepsAnalyzer`],
 ///    [`DuplicateCodeAnalyzer`].
 /// 5. `TestSmell`: [`TestRatioAnalyzer`], [`NoAssertsAnalyzer`],
@@ -175,6 +178,7 @@ pub fn builtin() -> Vec<Box<dyn zuit_core::Analyzer>> {
         Box::new(SsrfAnalyzer),
         Box::new(CorsPermissiveAnalyzer),
         Box::new(VulnerableDepsAnalyzer),
+        Box::new(RedosAnalyzer),
         Box::new(FanOutAnalyzer),
         Box::new(CyclicDepsAnalyzer),
         Box::new(DuplicateCodeAnalyzer),

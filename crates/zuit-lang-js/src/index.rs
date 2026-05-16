@@ -39,7 +39,8 @@ use oxc_span::Span as OxcSpan;
 
 use zuit_core::{
     ByteOffset, Comment as CoreComment, DocComment, FunctionKind, FunctionLike, Import, NodeId,
-    SemanticIndex, Span, StringLit, Suppression, TypeDecl, Visibility, parse_suppression_directive,
+    RegexLiteral, SemanticIndex, Span, StringLit, Suppression, TypeDecl, Visibility,
+    parse_suppression_directive,
 };
 
 use crate::complexity;
@@ -611,6 +612,15 @@ fn collect_expr(expr: &Expression<'_>, ctx: &mut IndexCtx<'_>) {
                 span: span_of(s.span),
             });
         }
+        Expression::RegExpLiteral(r) => {
+            // `/pattern/flags` literal — extract the pattern text.
+            let id = ctx.alloc_id();
+            ctx.index.regex_literals.push(RegexLiteral {
+                id,
+                value: r.regex.pattern.text.as_str().to_string(),
+                span: span_of(r.span),
+            });
+        }
         Expression::TemplateLiteral(t) => {
             // Static parts only — interpolated bits are sub-expressions.
             for q in &t.quasis {
@@ -665,6 +675,31 @@ fn collect_expr(expr: &Expression<'_>, ctx: &mut IndexCtx<'_>) {
             }
         }
         Expression::NewExpression(c) => {
+            // Detect `new RegExp(<str-or-regex-literal>, ...)`.
+            if let Expression::Identifier(ident) = &c.callee
+                && ident.name.as_str() == "RegExp"
+                && let Some(first_arg) = c.arguments.first().and_then(|a| a.as_expression())
+            {
+                match first_arg {
+                    Expression::StringLiteral(s) => {
+                        let id = ctx.alloc_id();
+                        ctx.index.regex_literals.push(RegexLiteral {
+                            id,
+                            value: s.value.to_string(),
+                            span: span_of(c.span),
+                        });
+                    }
+                    Expression::RegExpLiteral(r) => {
+                        let id = ctx.alloc_id();
+                        ctx.index.regex_literals.push(RegexLiteral {
+                            id,
+                            value: r.regex.pattern.text.as_str().to_string(),
+                            span: span_of(c.span),
+                        });
+                    }
+                    _ => {}
+                }
+            }
             collect_expr(&c.callee, ctx);
             for arg in &c.arguments {
                 if let Some(e) = arg.as_expression() {
@@ -1047,5 +1082,52 @@ mod tests {
     fn regular_comment_does_not_produce_suppression_js() {
         let idx = idx_of("a.ts", "// TODO: fix this\nfunction foo() {}");
         assert!(idx.suppressions.is_empty());
+    }
+
+    // ── regex literal collection (SEC014-redos-regex) ─────────────────────────
+
+    #[test]
+    fn regexp_literal_slash_syntax_produces_regex_literal() {
+        // `/pattern/flags` form.
+        let idx = idx_of("a.ts", "const r = /(a+)+/;");
+        assert!(
+            !idx.regex_literals.is_empty(),
+            "expected regex literal for /(a+)+/, got none"
+        );
+        assert!(
+            idx.regex_literals.iter().any(|r| r.value == "(a+)+"),
+            "expected value '(a+)+', got {:?}",
+            idx.regex_literals
+                .iter()
+                .map(|r| &r.value)
+                .collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn new_regexp_string_arg_produces_regex_literal() {
+        // `new RegExp(<string>)` form.
+        let idx = idx_of("a.ts", r#"const r = new RegExp("(a+)+");"#);
+        assert!(
+            !idx.regex_literals.is_empty(),
+            "expected regex literal for new RegExp(\"(a+)+\"), got none"
+        );
+        assert!(idx.regex_literals.iter().any(|r| r.value == "(a+)+"));
+    }
+
+    #[test]
+    fn new_regexp_regex_literal_arg_produces_regex_literal() {
+        // `new RegExp(/(a+)+/)` form — first arg is a RegExpLiteral.
+        let idx = idx_of("a.ts", "const r = new RegExp(/(a+)+/);");
+        // We expect at least one regex literal with value "(a+)+".
+        // (The RegExpLiteral itself is also collected via collect_expr.)
+        assert!(
+            idx.regex_literals.iter().any(|r| r.value == "(a+)+"),
+            "expected '(a+)+' in regex_literals, got {:?}",
+            idx.regex_literals
+                .iter()
+                .map(|r| &r.value)
+                .collect::<Vec<_>>()
+        );
     }
 }

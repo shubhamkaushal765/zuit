@@ -11,6 +11,8 @@ description = "Cross-language static analysis rules for zuit."
 zuit-core = { path = "../zuit-core", version = "0.1.0" }
 thiserror = { workspace = true }
 regex = { workspace = true }
+# pinned for SEC014-redos-regex AST traversal
+regex-syntax = "0.8"
 
 [dev-dependencies]
 zuit-lang-rust = { path = "../zuit-lang-rust", version = "0.1.0" }

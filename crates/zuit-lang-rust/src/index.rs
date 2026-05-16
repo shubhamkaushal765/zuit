@@ -11,11 +11,12 @@
 
 use std::sync::Arc;
 
+use syn::spanned::Spanned;
 use syn::visit::Visit;
 
 use zuit_core::{
-    Comment, DocComment, FunctionKind, FunctionLike, Import, ModuleDecl, NodeId, SemanticIndex,
-    Span, StringLit, Suppression, TypeDecl, Visibility, parse_suppression_directive,
+    Comment, DocComment, FunctionKind, FunctionLike, Import, ModuleDecl, NodeId, RegexLiteral,
+    SemanticIndex, Span, StringLit, Suppression, TypeDecl, Visibility, parse_suppression_directive,
     span::ByteOffset,
 };
 
@@ -475,6 +476,69 @@ impl<'ast> Visit<'ast> for IndexVisitor {
             span,
         });
     }
+
+    // ── regex literals (SEC014-redos-regex) ───────────────────────────────
+    //
+    // Detect `Regex::new(<str>)` / `RegexBuilder::new(<str>)` / etc.
+    // The last path segment must be `new` and the preceding segment must end
+    // with `Regex` or `RegexBuilder`.
+
+    fn visit_expr_call(&mut self, node: &'ast syn::ExprCall) {
+        if let Some(pattern) = extract_regex_new_pattern(node) {
+            let span = self.proc_span(node.span());
+            let id = self.alloc_id();
+            self.index.regex_literals.push(RegexLiteral {
+                id,
+                value: pattern,
+                span,
+            });
+        }
+        // Always continue visiting so nested calls / string literals are found.
+        syn::visit::visit_expr_call(self, node);
+    }
+}
+
+/// Extracts the regex pattern string from a `Regex::new(<str>)` /
+/// `RegexBuilder::new(<str>)` / `regex::Regex::new(<str>)` call.
+///
+/// Returns `Some(pattern)` when:
+/// - the callee is a path expression whose last segment is `new`;
+/// - the preceding segment ends with `Regex` or `RegexBuilder`;
+/// - the first argument is a string literal.
+fn extract_regex_new_pattern(call: &syn::ExprCall) -> Option<String> {
+    // The callee must be a path expression.
+    let path = match call.func.as_ref() {
+        syn::Expr::Path(p) => &p.path,
+        _ => return None,
+    };
+
+    let segs: Vec<_> = path.segments.iter().collect();
+    if segs.len() < 2 {
+        return None;
+    }
+
+    // Last segment must be `new`.
+    if segs.last()?.ident != "new" {
+        return None;
+    }
+
+    // Second-to-last segment must end with `Regex` or `RegexBuilder`.
+    let prev_ident = segs[segs.len() - 2].ident.to_string();
+    if !prev_ident.ends_with("Regex") && !prev_ident.ends_with("RegexBuilder") {
+        return None;
+    }
+
+    // First argument must be a string literal.
+    let first_arg = call.args.first()?;
+    if let syn::Expr::Lit(syn::ExprLit {
+        lit: syn::Lit::Str(s),
+        ..
+    }) = first_arg
+    {
+        return Some(s.value());
+    }
+
+    None
 }
 
 /// Render a `syn::UseTree` to a human-readable import path string.
@@ -645,5 +709,43 @@ mod tests {
     fn regular_comment_does_not_produce_suppression() {
         let idx = index_of("// TODO: fix this\nfn foo() {}");
         assert!(idx.suppressions.is_empty());
+    }
+
+    // ── regex literal collection (SEC014-redos-regex) ─────────────────────────
+
+    #[test]
+    fn regex_new_call_produces_regex_literal() {
+        let code = r#"fn f() { let r = Regex::new("(a+)+").unwrap(); }"#;
+        let idx = index_of(code);
+        assert!(
+            !idx.regex_literals.is_empty(),
+            "expected at least one regex literal, got none"
+        );
+        assert!(
+            idx.regex_literals.iter().any(|r| r.value == "(a+)+"),
+            "expected value '(a+)+', got {:?}",
+            idx.regex_literals
+                .iter()
+                .map(|r| &r.value)
+                .collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn regex_crate_path_new_call_produces_regex_literal() {
+        let code = r#"fn f() { let r = regex::Regex::new("abc+").unwrap(); }"#;
+        let idx = index_of(code);
+        assert!(idx.regex_literals.iter().any(|r| r.value == "abc+"));
+    }
+
+    #[test]
+    fn regex_builder_new_call_produces_regex_literal() {
+        let code = r#"fn f() { let r = RegexBuilder::new("(a|b)+").build().unwrap(); }"#;
+        let idx = index_of(code);
+        assert!(
+            !idx.regex_literals.is_empty(),
+            "expected regex literal for RegexBuilder::new"
+        );
+        assert!(idx.regex_literals.iter().any(|r| r.value == "(a|b)+"));
     }
 }

@@ -762,6 +762,43 @@ fn python_hardcoded_security_constant_positive_fixture_has_sec012_finding() {
     );
 }
 
+// ── SEC014-redos-regex: Python positive fixture produces at least one finding ──
+
+#[test]
+fn python_redos_regex_positive_fixture_has_sec014_finding() {
+    let path = workspace_path("fixtures/python/redos_regex/positive.py");
+    let raw = zuit()
+        .args([
+            "analyze",
+            path.to_str().unwrap(),
+            "--format",
+            "json",
+            "--no-save",
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let json: serde_json::Value = serde_json::from_slice(&raw).expect("stdout must be valid JSON");
+    let findings = json["findings"].as_array().expect("findings must be array");
+
+    let has_sec014 = findings
+        .iter()
+        .any(|f| f["rule_id"].as_str() == Some("SEC014-redos-regex"));
+
+    assert!(
+        has_sec014,
+        "python/redos_regex/positive.py must produce at least one \
+         SEC014-redos-regex finding; rule_ids present: {:?}",
+        findings
+            .iter()
+            .filter_map(|f| f["rule_id"].as_str())
+            .collect::<Vec<_>>()
+    );
+}
+
 // ── SEC015-log-injection: Python positive fixture produces at least one finding ──
 
 #[test]

@@ -61,7 +61,8 @@ pub use finding::{Finding, sort_findings};
 pub use id::{AnalyzerId, LanguageId};
 pub use index::{
     Comment, ComplexityMetrics, DocComment, FunctionKind, FunctionLike, Import, ModuleDecl, NodeId,
-    SemanticIndex, StringLit, Suppression, TypeDecl, Visibility, parse_suppression_directive,
+    RegexLiteral, SemanticIndex, StringLit, Suppression, TypeDecl, Visibility,
+    parse_suppression_directive,
 };
 pub use language::Language;
 pub use parsed::{NativeAst, ParsedFile};
