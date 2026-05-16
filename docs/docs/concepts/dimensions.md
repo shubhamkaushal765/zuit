@@ -9,6 +9,28 @@ import DimensionsHexagon from '@site/src/components/diagrams/DimensionsHexagon';
 
 zuit groups every finding it reports into one of several dimensions. Each dimension gets its own 0–100 score, so you can see at a glance where your project is healthy and where it needs attention. CI gates work per-dimension, so you can enforce a Security floor without blocking on Documentation.
 
+## At a glance
+
+| Dimension       | Serialised name    | Rules | What it measures                                                                 |
+| --------------- | ------------------ | -----:| -------------------------------------------------------------------------------- |
+| Security        | `security`         | 16    | Patterns commonly exploited by attackers                                         |
+| Maintainability | `maintainability`  | 14    | How easy the code is to read and modify (length, nesting, branching)             |
+| Complexity      | `complexity`       | 3     | Structural complexity across files (fan-out, cyclic deps, duplicate code)        |
+| Documentation   | `documentation`    | 4     | Public-API doc coverage and inline TODO/FIXME inventory                          |
+| Test smell      | `test_smell`       | 6     | Quality of tests themselves (test ratio, no-assert tests, skipped tests, flaky)  |
+| Supply chain    | `supply_chain`     | 8     | Dependency provenance, typosquatting, lockfiles, stale transitives               |
+| Packaging       | `packaging`        | 23    | Package metadata correctness and consumer usability                              |
+| Performance     | `performance`      | 8     | Bundle size, heavy imports, compile-time and runtime overhead                    |
+| Soundness       | `unsafe_soundness` | 6     | Rust memory safety and unsoundness patterns                                      |
+| Project health  | `project_health`   | 5     | Repository health (bus factor, release cadence, changelog)                       |
+| CI / release    | `ci_release`       | 5     | CI pipeline completeness (MSRV, multi-OS, deny job, Dependabot)                  |
+| Ecosystem       | `ecosystem`        | 4     | Rust ecosystem compatibility (no_std, async runtime, Send/Sync)                  |
+| API stability   | `api_stability`    | 3     | Public-API drift across releases (removed symbols, semver alignment)             |
+
+:::note
+Each dimension produces an independent 0–100 score. There is no single composite score — you choose which dimensions to gate on in CI. The five v1 dimensions (Security through Test smell) are first-class variants of `Dimension`; the rest serialise as `Dimension::Custom("...")` and round-trip through every formatter unchanged.
+:::
+
 <DimensionsHexagon />
 
 ---
@@ -58,6 +80,8 @@ Rules: [MAINT001-cyclomatic](/rules/MAINT001-cyclomatic), [MAINT003-fn-length](/
 - Two or more modules that depend on each other, creating a cycle (`CPLX002-cyclic-deps`)
 - Near-identical code blocks repeated across multiple files (`CPLX003-duplicate-code`)
 
+Rules: [CPLX001-fan-out](/rules/CPLX001-fan-out), [CPLX002-cyclic-deps](/rules/CPLX002-cyclic-deps), [CPLX003-duplicate-code](/rules/CPLX003-duplicate-code)
+
 ---
 
 ## Documentation
@@ -70,8 +94,9 @@ Rules: [MAINT001-cyclomatic](/rules/MAINT001-cyclomatic), [MAINT003-fn-length](/
 
 - A public function with no docstring or doc comment (`DOC001-public-api-undoc`)
 - A `FIXME` comment that has been in the codebase for months (`DOC002-todo-fixme`)
+- An empty or placeholder doc comment that satisfies the linter but says nothing (`DOC003-empty-doc`)
 
-Rules: [DOC001-public-api-undoc](/rules/DOC001-public-api-undoc), [DOC002-todo-fixme](/rules/DOC002-todo-fixme)
+Rules: [DOC001-public-api-undoc](/rules/DOC001-public-api-undoc), [DOC002-todo-fixme](/rules/DOC002-todo-fixme), [DOC003-empty-doc](/rules/DOC003-empty-doc), [DOC004-stale-doc](/rules/DOC004-stale-doc)
 
 ---
 
@@ -87,7 +112,9 @@ Rules: [DOC001-public-api-undoc](/rules/DOC001-public-api-undoc), [DOC002-todo-f
 - A test function with zero `assert` calls (`TEST002-no-asserts`)
 - A test marked with `skip` or `pytest.mark.skip` (`TEST003-skipped`)
 - A test that compares against `time.time()` or `Date.now()` (`TEST004-flaky-time`)
-- A test with only one assertion for a complex behavior (`TEST005-assert-count`)
+- A single test crammed with more than ten assertions (`TEST005-assert-count`)
+
+Rules: [TEST001-test-ratio](/rules/TEST001-test-ratio), [TEST002-no-asserts](/rules/TEST002-no-asserts), [TEST003-skipped](/rules/TEST003-skipped), [TEST004-flaky-time](/rules/TEST004-flaky-time), [TEST005-assert-count](/rules/TEST005-assert-count)
 
 ---
 
@@ -135,31 +162,7 @@ Rules: [DOC001-public-api-undoc](/rules/DOC001-public-api-undoc), [DOC002-todo-f
 
 ---
 
-## Ecosystem (`eco`)
-
-**What this catches:** Rust-specific ecosystem compatibility issues — missing `no_std` support, hard-wired async runtime choices, missing `Send`/`Sync` bounds on public types, and fragmented feature graphs.
-
-Rules: ECO001 through ECO004.
-
----
-
-## Health (`health`)
-
-**What this catches:** Repository-level health signals — single-author bus factor, stale releases, missing changelogs, and commit staleness.
-
-Rules: HEALTH001 through HEALTH005.
-
----
-
-## CI (`ci`)
-
-**What this catches:** Missing or incomplete CI configuration — no CI config at all, no MSRV test job, no Windows job, no `cargo-deny` job, no Dependabot config.
-
-Rules: CI001 through CI005.
-
----
-
-## Soundness (`sound`)
+## Soundness (`unsafe_soundness`)
 
 **What this catches:** Rust-specific unsoundness patterns — `unsafe` blocks without a `# Safety` comment, `transmute` usage, raw pointers in public API signatures, FFI functions without safety documentation.
 
@@ -167,27 +170,38 @@ Rules: SOUND001 through SOUND006.
 
 ---
 
-## Quick reference
+## Project health (`project_health`)
 
-| Dimension       | Serialised name  | What it measures                                                                 |
-| --------------- | ---------------- | -------------------------------------------------------------------------------- |
-| Security        | `security`       | Patterns commonly exploited by attackers                                         |
-| Maintainability | `maintainability`| How easy the code is to read and modify (length, nesting, branching)             |
-| Complexity      | `complexity`     | Structural complexity across files (fan-out, cyclic deps, duplicate code)        |
-| Documentation   | `documentation`  | Public-API doc coverage and inline TODO/FIXME inventory                          |
-| Test smell      | `test_smell`     | Quality of tests themselves (test ratio, no-assert tests, skipped tests, flaky)  |
-| Supply chain    | `supply_chain`   | Dependency provenance, typosquatting, lockfiles, stale transitives               |
-| Packaging       | `packaging`      | Package metadata correctness and consumer usability                              |
-| Performance     | `performance`    | Bundle size, heavy imports, compile-time and runtime overhead                    |
-| Ecosystem       | `eco`            | Rust ecosystem compatibility (no_std, async runtime, Send/Sync)                  |
-| Health          | `health`         | Repository health (bus factor, release cadence, changelog)                       |
-| CI              | `ci`             | CI pipeline completeness                                                         |
-| Soundness       | `sound`          | Rust memory safety and unsoundness patterns                                      |
+**What this catches:** Repository-level health signals — single-author bus factor, stale releases, missing changelogs, and commit staleness.
 
-:::note
-Each dimension produces an independent 0–100 score. There is no single composite score — you choose which dimensions to gate on in CI.
-:::
+Rules: HEALTH001 through HEALTH005.
 
-All 96 rules across all dimensions are enabled by default. Browse the full list under [Rules reference](/rules/).
+---
+
+## CI / release (`ci_release`)
+
+**What this catches:** Missing or incomplete CI configuration — no CI config at all, no MSRV test job, no Windows job, no `cargo-deny` job, no Dependabot config.
+
+Rules: CI001 through CI005.
+
+---
+
+## Ecosystem (`ecosystem`)
+
+**What this catches:** Rust-specific ecosystem compatibility issues — missing `no_std` support, hard-wired async runtime choices, missing `Send`/`Sync` bounds on public types, and fragmented feature graphs.
+
+Rules: ECO001 through ECO004.
+
+---
+
+## API stability (`api_stability`)
+
+**What this catches:** Public-API drift between releases — symbols removed without a major-version bump, function signatures whose arity changed in a minor release, and version numbers that disagree with their semver implications.
+
+Rules: API001 through API003.
+
+---
+
+All ~105 rules across all dimensions are enabled by default. Browse the full list under [Rules reference](/rules/).
 
 For how scores are calculated from findings, see [Severity and scoring](/concepts/severity-and-scoring).
