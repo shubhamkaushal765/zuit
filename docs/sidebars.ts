@@ -319,11 +319,6 @@ const sidebars: SidebarsConfig = {
         'reference/taxonomy',
       ],
     },
-    {
-      type: 'category',
-      label: 'Design',
-      items: ['design/color-system'],
-    },
     'architecture',
   ],
 };
