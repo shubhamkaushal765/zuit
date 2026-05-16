@@ -7,6 +7,8 @@ import DimensionsHexagon from '@site/src/components/diagrams/DimensionsHexagon';
 
 # Dimensions
 
+<DimensionsHexagon />
+
 zuit groups every finding it reports into one of several dimensions. Each dimension gets its own 0–100 score, so you can see at a glance where your project is healthy and where it needs attention. CI gates work per-dimension, so you can enforce a Security floor without blocking on Documentation.
 
 ## At a glance
@@ -30,8 +32,6 @@ zuit groups every finding it reports into one of several dimensions. Each dimens
 :::note
 Each dimension produces an independent 0–100 score. There is no single composite score — you choose which dimensions to gate on in CI. The five v1 dimensions (Security through Test smell) are first-class variants of `Dimension`; the rest serialise as `Dimension::Custom("...")` and round-trip through every formatter unchanged.
 :::
-
-<DimensionsHexagon />
 
 ---
 
