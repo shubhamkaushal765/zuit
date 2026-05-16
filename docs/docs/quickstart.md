@@ -9,10 +9,26 @@ Get zuit running, scan a project, and learn to read the output — in about five
 
 ## Install
 
-The fastest path is through cargo, Rust's package manager:
+Pick the package manager you already have. All three paths give you the same `zuit` binary.
+
+**Rust — cargo** (canonical; ships the binary directly):
 
 ```bash
 cargo install --locked zuit
+```
+
+You'll need cargo installed first. If you don't have it, get it from [rustup.rs](https://rustup.rs) — the installer sets up cargo and the Rust toolchain in one step.
+
+**Python — pip** (wheels bundle the precompiled binary, so `zuit analyze .` works right after install):
+
+```bash
+pip install zuit
+```
+
+**Node.js — npm** (installs a launcher; pair it with `cargo install zuit` or set `ZUIT_BIN` to point at an existing binary):
+
+```bash
+npm install -g zuit
 ```
 
 Verify the binary is on your `PATH`:
@@ -21,7 +37,7 @@ Verify the binary is on your `PATH`:
 zuit --version
 ```
 
-You'll need cargo installed first. If you don't have it, get it from [rustup.rs](https://rustup.rs) — the installer sets up cargo and the Rust toolchain in one step.
+The pip and npm packages are launchers — they resolve a `zuit` binary via `ZUIT_BIN`, a bundled binary, or your OS `PATH`. The pip wheel already includes a binary; the npm package does not, so install via cargo or point `ZUIT_BIN` at an existing binary.
 
 **Build from source** (for the latest unreleased changes):
 
