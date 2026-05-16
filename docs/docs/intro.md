@@ -7,7 +7,7 @@ import PipelineDiagram from '@site/src/components/diagrams/PipelineDiagram';
 
 # Welcome to zuit
 
-Your code has problems — security risks, tech debt, tests that don't actually test. zuit finds them across five quality dimensions, in one command. Deterministically: two runs against unchanged source produce byte-identical output.
+Your code has problems — security risks, tech debt, tests that don't actually test. zuit finds them across 9+ quality dimensions, in one command. Deterministically: two runs against unchanged source produce byte-identical output.
 
 <PipelineDiagram />
 
@@ -19,9 +19,9 @@ Your code has problems — security risks, tech debt, tests that don't actually 
 
 **Track quality across releases.** Every scan is saved locally. `zuit show` opens a browser dashboard with Trends, Diff, and Heatmap views to see whether quality is improving sprint over sprint. No external service, no data leaving your machine.
 
-## Five quality dimensions
+## Quality dimensions
 
-Instead of a flat list of warnings, zuit groups every finding into one of five named dimensions and gives each an independent score:
+Instead of a flat list of warnings, zuit groups every finding into a named dimension and gives each an independent score. Nine dimensions are user-facing; three more (ecosystem, CI, soundness) fire on Rust crates.
 
 ```mermaid
 flowchart LR
@@ -30,13 +30,21 @@ flowchart LR
     FND --> SC[dimension score\n0–100]
 ```
 
-| Dimension       | What it measures                                          |
-| --------------- | --------------------------------------------------------- |
-| Security        | Patterns commonly exploited by attackers                  |
-| Maintainability | How easy the code is to read and change                   |
-| Complexity      | Project-level structural complexity (fan-out, cycles)     |
-| Documentation   | Public-API doc coverage and TODO/FIXME inventory          |
-| TestSmell       | Quality of the tests themselves                           |
+| Dimension       | What it measures                                                    |
+| --------------- | ------------------------------------------------------------------- |
+| Security        | Patterns commonly exploited by attackers                            |
+| Maintainability | How easy the code is to read and change                             |
+| Complexity      | Project-level structural complexity (fan-out, cycles)               |
+| Documentation   | Public-API doc coverage and TODO/FIXME inventory                    |
+| Test smell      | Quality of the tests themselves                                     |
+| Supply chain    | Dependency provenance, typosquatting, lockfiles, stale transitives  |
+| Packaging       | Package metadata correctness and consumer usability                 |
+| Performance     | Bundle size, heavy imports, runtime overhead                        |
+| Health          | Repository health (bus factor, release cadence, changelog)          |
+
+:::note
+Each dimension produces an independent 0–100 score — there is no single composite. CI gates per dimension, so you can enforce a Security floor without blocking on Documentation. Some dimensions only fire when the relevant language frontend is enabled (e.g. ecosystem / CI / soundness are Rust-specific).
+:::
 
 See [Dimensions](/concepts/dimensions) for the full rule list and [Severity and scoring](/concepts/severity-and-scoring) for how scores are calculated.
 

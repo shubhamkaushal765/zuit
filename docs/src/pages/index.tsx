@@ -182,10 +182,11 @@ function DimensionsSection(): ReactNode {
   return (
     <section className={styles.section}>
       <div className="container">
-        <Heading as="h2" className={styles.sectionHeading}>Five dimensions</Heading>
+        <Heading as="h2" className={styles.sectionHeading}>Quality dimensions</Heading>
         <p className={styles.sectionLead}>
-          zuit groups every finding under one of five named dimensions and emits an independent
-          0–100 score for each.
+          zuit emits an independent 0–100 score across 9+ quality dimensions. Below are the five
+          core dimensions every project gets; supply chain, packaging, performance, and health
+          dimensions kick in when their language frontend is enabled.
         </p>
         <div className={styles.cardGrid}>
           {dimensions.map((d) => (
