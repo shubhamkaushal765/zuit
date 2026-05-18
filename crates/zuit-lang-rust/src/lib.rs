@@ -68,7 +68,7 @@ impl Language for RustLanguage {
 /// - `CHAIN001`–`CHAIN004` — supply chain rules
 /// - `PERF001`–`PERF003` — performance heuristics
 /// - `ECO001`–`ECO004` — ecosystem compatibility rules
-/// - `CI001`–`CI005` — CI/CD & release hygiene rules
+/// - `CI001`–`CI006` — CI/CD & release hygiene rules
 /// - `CargoAuditAnalyzer` — `cargo audit` external-tool adapter
 /// - `CargoClippyAnalyzer` — `cargo clippy` external-tool adapter
 /// - `CargoGeigerAnalyzer` — `cargo geiger` external-tool adapter
@@ -158,6 +158,7 @@ pub fn register(registry: &mut Registry) {
     registry.add_analyzer(Box::new(analyzers::ci::Ci003NoWindowsJob));
     registry.add_analyzer(Box::new(analyzers::ci::Ci004NoCargoDenyJob));
     registry.add_analyzer(Box::new(analyzers::ci::Ci005NoDependabot));
+    registry.add_analyzer(Box::new(analyzers::ci::Ci006WarningsNotDenied));
 
     // External tool family
     registry.add_analyzer(Box::new(
@@ -231,7 +232,7 @@ mod tests {
         register(&mut registry);
         assert_eq!(registry.language_count(), 1);
         // 1 (SEC101) + 1 (MAINT013) + 1 (MAINT009) + 1 (MAINT010) + 1 (MAINT012) + 6 SOUND
-        // + 10 PKG + 5 HEALTH + 4 CHAIN + 3 PERF + 4 ECO + 5 CI + 4 external + 1 (SEC015) = 50 total.
-        assert_eq!(registry.analyzer_count(), 50);
+        // + 10 PKG + 5 HEALTH + 4 CHAIN + 3 PERF + 4 ECO + 6 CI + 4 external + 1 (SEC015) = 51 total.
+        assert_eq!(registry.analyzer_count(), 51);
     }
 }

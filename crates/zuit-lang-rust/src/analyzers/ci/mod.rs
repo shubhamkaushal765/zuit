@@ -13,18 +13,21 @@
 //! | `CI003` | no-windows-job | Low |
 //! | `CI004` | no-cargo-deny-job | Low |
 //! | `CI005` | no-dependabot | Low |
+//! | `CI006` | warnings-not-denied | Low |
 
 pub mod ci001_no_ci_config;
 pub mod ci002_no_msrv_test_job;
 pub mod ci003_no_windows_job;
 pub mod ci004_no_cargo_deny_job;
 pub mod ci005_no_dependabot;
+pub mod ci006_warnings_not_denied;
 
 pub use ci001_no_ci_config::Ci001NoCiConfig;
 pub use ci002_no_msrv_test_job::Ci002NoMsrvTestJob;
 pub use ci003_no_windows_job::Ci003NoWindowsJob;
 pub use ci004_no_cargo_deny_job::Ci004NoCargoDenyJob;
 pub use ci005_no_dependabot::Ci005NoDependabot;
+pub use ci006_warnings_not_denied::Ci006WarningsNotDenied;
 
 use std::path::Path;
 

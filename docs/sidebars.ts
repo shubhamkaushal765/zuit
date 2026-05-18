@@ -169,6 +169,7 @@ const sidebars: SidebarsConfig = {
             'rules/CI003-no-windows-job',
             'rules/CI004-no-cargo-deny-job',
             'rules/CI005-no-dependabot',
+            'rules/CI006-warnings-not-denied',
           ],
         },
         {
