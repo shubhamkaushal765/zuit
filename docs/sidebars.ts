@@ -70,6 +70,13 @@ const sidebars: SidebarsConfig = {
         'rules/suppression',
         {
           type: 'category',
+          label: 'Bug',
+          items: [
+            'rules/BUG001-assignment-in-condition',
+          ],
+        },
+        {
+          type: 'category',
           label: 'Maintainability',
           items: [
             'rules/MAINT001-cyclomatic',
@@ -211,6 +218,8 @@ const sidebars: SidebarsConfig = {
             'rules/MAINT012-dead-store',
             'rules/MAINT013-empty-block',
             'rules/MAINT014-commented-out-code',
+            'rules/MAINT016-unreachable-code',
+            'rules/MAINT018-global-var-density',
           ],
         },
         {
@@ -225,6 +234,7 @@ const sidebars: SidebarsConfig = {
             'rules/PERF002-wheel-size',
             'rules/PERF003-arc-mutex-density',
             'rules/PERF003-import-side-effect',
+            'rules/PERF010-allocation-in-loop',
           ],
         },
         {

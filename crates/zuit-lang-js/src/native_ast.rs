@@ -227,6 +227,45 @@ pub struct JsAst {
     /// when the name does not appear in any later `Identifier` reference in
     /// the same function body.
     pub dead_stores: Vec<JsDeadStore>,
+
+    /// Assignment-in-condition sites for `BUG001-assignment-in-condition`.
+    ///
+    /// Populated for every assignment expression (`=`, `+=`, `-=`, etc.) that
+    /// appears in the test slot of an `if`, `while`, `do-while`, `for`, or
+    /// conditional (`?:`) expression.  Assignments wrapped in extra parentheses
+    /// (`if ((x = 1))`) are **excluded** per the `ESLint` `"except-parens"` convention.
+    pub assignment_in_conditions: Vec<JsAssignInCondSite>,
+
+    /// Spans of the **first dead statement** in each block that contains
+    /// unreachable code, for `MAINT016-unreachable-code`.
+    ///
+    /// Populated during the AST walk for each `BlockStatement` body.  For each
+    /// flat list of statements (function body, block body, etc.) we find the
+    /// first terminating statement (`return`, `throw`, `break`, `continue`) and
+    /// record the span of the first following statement.  One entry per block —
+    /// never one per dead statement.
+    pub unreachable_stmts: Vec<Span>,
+}
+
+/// An assignment-in-condition site extracted for `BUG001-assignment-in-condition`.
+///
+/// Records cases where an assignment expression (any of `=`, `+=`, `-=`, `*=`,
+/// `/=`, etc.) appears in the *test* position of an `if`, `while`, `do-while`,
+/// `for` statement, or a conditional (`?:`) expression.  The common mistake is
+/// `if (x = 1)` instead of `if (x == 1)`.
+///
+/// # Carve-out
+///
+/// Following `ESLint`'s `no-cond-assign` `"except-parens"` default, an
+/// assignment wrapped in an **extra** pair of parentheses is **not** flagged:
+/// `if ((x = 1))` is treated as intentional.  In the oxc AST this appears as a
+/// `ParenthesizedExpression` whose inner expression is an `AssignmentExpression`.
+#[derive(Debug, Clone)]
+pub struct JsAssignInCondSite {
+    /// Byte span of the assignment expression.
+    pub span: Span,
+    /// The assignment operator as a display string (e.g. `"="`, `"+="`, …).
+    pub operator: &'static str,
 }
 
 /// A dead-store site extracted for `MAINT012-dead-store`.

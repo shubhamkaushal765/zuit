@@ -1,8 +1,8 @@
 //! PERF — Performance heuristics rule family for Rust crates.
 //!
 //! All rules use `Dimension::Custom("performance")`.
-//! `PERF001` is `AnalyzerKind::ProjectLevel`; `PERF002` and `PERF003` are
-//! `AnalyzerKind::FileLevel`.
+//! `PERF001` is `AnalyzerKind::ProjectLevel`; `PERF002`, `PERF003`, and
+//! `PERF010` are `AnalyzerKind::FileLevel`.
 //!
 //! ## Rules
 //!
@@ -11,14 +11,17 @@
 //! | `PERF001` | heavy-default-features | Medium | ProjectLevel |
 //! | `PERF002` | clone-in-iter-chain | Medium | FileLevel |
 //! | `PERF003` | arc-mutex-density | Low | ProjectLevel |
+//! | `PERF010` | allocation-in-loop | Low | FileLevel |
 
 pub mod perf001_heavy_default_features;
 pub mod perf002_clone_in_iter_chain;
 pub mod perf003_arc_mutex_density;
+pub mod perf010_allocation_in_loop;
 
 pub use perf001_heavy_default_features::Perf001HeavyDefaultFeatures;
 pub use perf002_clone_in_iter_chain::Perf002CloneInIterChain;
 pub use perf003_arc_mutex_density::Perf003ArcMutexDensity;
+pub use perf010_allocation_in_loop::Perf010AllocationInLoop;
 
 use std::path::Path;
 

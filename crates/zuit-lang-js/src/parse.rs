@@ -18,8 +18,8 @@ use oxc_span::SourceType;
 use zuit_core::{ByteOffset, LanguageId, ParseError, ParsedFile, SourceFile, Span};
 
 use crate::native_ast::{
-    DomSinkKind, JsAssignmentSite, JsAst, JsBindCallSite, JsCallSite, JsCallee, JsDeadStore,
-    JsDebugKind, JsDomSink, JsImport, JsLiteralValue, JsLogCallSite, JsSwitchSite,
+    DomSinkKind, JsAssignInCondSite, JsAssignmentSite, JsAst, JsBindCallSite, JsCallSite, JsCallee,
+    JsDeadStore, JsDebugKind, JsDomSink, JsImport, JsLiteralValue, JsLogCallSite, JsSwitchSite,
 };
 
 /// Parses `source` as JavaScript or TypeScript and returns a populated
@@ -108,6 +108,10 @@ struct WalkCtx {
     infinite_loops: Vec<Span>,
     /// Dead-store sites for `MAINT012-dead-store`.
     dead_stores: Vec<JsDeadStore>,
+    /// Assignment-in-condition sites for `BUG001-assignment-in-condition`.
+    assignment_in_conditions: Vec<JsAssignInCondSite>,
+    /// First-dead-statement spans for `MAINT016-unreachable-code`.
+    unreachable_stmts: Vec<Span>,
 }
 
 impl WalkCtx {
@@ -127,6 +131,8 @@ impl WalkCtx {
             switch_sites: Vec::new(),
             infinite_loops: Vec::new(),
             dead_stores: Vec::new(),
+            assignment_in_conditions: Vec::new(),
+            unreachable_stmts: Vec::new(),
         }
     }
 }
@@ -172,6 +178,8 @@ fn extract_call_sites(program: &Program<'_>) -> JsAst {
         switch_sites: ctx.switch_sites,
         infinite_loops: ctx.infinite_loops,
         dead_stores: ctx.dead_stores,
+        assignment_in_conditions: ctx.assignment_in_conditions,
+        unreachable_stmts: ctx.unreachable_stmts,
     }
 }
 
@@ -429,6 +437,35 @@ fn is_string_like(arg: &Argument<'_>) -> bool {
         Expression::StringLiteral(_) => true,
         Expression::TemplateLiteral(tpl) => tpl.expressions.is_empty(),
         _ => false,
+    }
+}
+
+// ── Unreachable-code helpers for MAINT016 ────────────────────────────────────
+
+/// Returns `true` if `stmt` is a terminating statement for MAINT016.
+///
+/// Terminating: `return`, `throw`, `break`, `continue`.
+fn is_js_terminating(stmt: &Statement<'_>) -> bool {
+    matches!(
+        stmt,
+        Statement::ReturnStatement(_)
+            | Statement::ThrowStatement(_)
+            | Statement::BreakStatement(_)
+            | Statement::ContinueStatement(_)
+    )
+}
+
+/// Scans a flat slice of statements for the first terminator and, if a
+/// statement follows it, pushes that first dead statement's span onto `out`.
+///
+/// One entry per block — never one per dead statement.
+fn check_js_block_for_unreachable(stmts: &[Statement<'_>], out: &mut Vec<Span>) {
+    let Some(term_idx) = stmts.iter().position(is_js_terminating) else {
+        return;
+    };
+    if let Some(dead) = stmts.get(term_idx + 1) {
+        use oxc_span::GetSpan;
+        out.push(oxc_span_to_core(dead.span()));
     }
 }
 
@@ -895,6 +932,51 @@ fn collect_refs_from_stmt(stmt: &Statement<'_>, refs: &mut Vec<(String, u32)>) {
     }
 }
 
+/// Maps an [`oxc_ast::ast::AssignmentOperator`] to a static display string.
+fn assignment_operator_str(op: oxc_ast::ast::AssignmentOperator) -> &'static str {
+    use oxc_ast::ast::AssignmentOperator;
+    match op {
+        AssignmentOperator::Assign => "=",
+        AssignmentOperator::Addition => "+=",
+        AssignmentOperator::Subtraction => "-=",
+        AssignmentOperator::Multiplication => "*=",
+        AssignmentOperator::Division => "/=",
+        AssignmentOperator::Remainder => "%=",
+        AssignmentOperator::Exponential => "**=",
+        AssignmentOperator::ShiftLeft => "<<=",
+        AssignmentOperator::ShiftRight => ">>=",
+        AssignmentOperator::ShiftRightZeroFill => ">>>=",
+        AssignmentOperator::BitwiseOR => "|=",
+        AssignmentOperator::BitwiseXOR => "^=",
+        AssignmentOperator::BitwiseAnd => "&=",
+        AssignmentOperator::LogicalAnd => "&&=",
+        AssignmentOperator::LogicalOr => "||=",
+        AssignmentOperator::LogicalNullish => "??=",
+    }
+}
+
+/// If `expr` is an `AssignmentExpression` (but NOT a parenthesized one —
+/// the `ESLint` `"except-parens"` carve-out), pushes a
+/// [`JsAssignInCondSite`] onto `out.assignment_in_conditions`.
+///
+/// The carve-out: `if ((x = 1))` wraps the assignment in a
+/// `ParenthesizedExpression` whose inner is an `AssignmentExpression`.  We
+/// treat that as intentional and do not flag it.
+fn check_assign_in_cond(expr: &Expression<'_>, out: &mut WalkCtx) {
+    // Carve-out: `if ((x = 1))` — the outer paren makes intent explicit.
+    if let Expression::ParenthesizedExpression(p) = expr
+        && matches!(p.expression, Expression::AssignmentExpression(_))
+    {
+        return;
+    }
+    if let Expression::AssignmentExpression(a) = expr {
+        out.assignment_in_conditions.push(JsAssignInCondSite {
+            span: oxc_span_to_core(a.span),
+            operator: assignment_operator_str(a.operator),
+        });
+    }
+}
+
 #[allow(clippy::too_many_lines)]
 fn walk_stmt(stmt: &Statement<'_>, out: &mut WalkCtx) {
     match stmt {
@@ -922,6 +1004,8 @@ fn walk_stmt(stmt: &Statement<'_>, out: &mut WalkCtx) {
             }
         }
         Statement::BlockStatement(b) => {
+            // MAINT016: detect unreachable statements in this block.
+            check_js_block_for_unreachable(&b.body, &mut out.unreachable_stmts);
             for s in &b.body {
                 walk_stmt(s, out);
             }
@@ -933,6 +1017,8 @@ fn walk_stmt(stmt: &Statement<'_>, out: &mut WalkCtx) {
             {
                 out.empty_blocks.push(oxc_span_to_core(s.span));
             }
+            // BUG001: flag assignment in `if` test.
+            check_assign_in_cond(&s.test, out);
             walk_expr(&s.test, out);
             walk_stmt(&s.consequent, out);
             if let Some(alt) = &s.alternate {
@@ -959,10 +1045,14 @@ fn walk_stmt(stmt: &Statement<'_>, out: &mut WalkCtx) {
                     out.infinite_loops.push(oxc_span_to_core(s.span));
                 }
             }
+            // BUG001: flag assignment in `while` test.
+            check_assign_in_cond(&s.test, out);
             walk_expr(&s.test, out);
             walk_stmt(&s.body, out);
         }
         Statement::DoWhileStatement(s) => {
+            // BUG001: flag assignment in `do-while` test.
+            check_assign_in_cond(&s.test, out);
             walk_expr(&s.test, out);
             walk_stmt(&s.body, out);
         }
@@ -996,6 +1086,8 @@ fn walk_stmt(stmt: &Statement<'_>, out: &mut WalkCtx) {
                 }
             }
             if let Some(test) = &s.test {
+                // BUG001: flag assignment in `for` test.
+                check_assign_in_cond(test, out);
                 walk_expr(test, out);
             }
             if let Some(update) = &s.update {
@@ -1063,6 +1155,8 @@ fn walk_stmt(stmt: &Statement<'_>, out: &mut WalkCtx) {
                 // MAINT012: extract dead stores for this function scope.
                 let dead = extract_dead_stores_from_fn_body(&body.statements);
                 out.dead_stores.extend(dead);
+                // MAINT016: detect unreachable statements in this function body.
+                check_js_block_for_unreachable(&body.statements, &mut out.unreachable_stmts);
                 for s in &body.statements {
                     walk_stmt(s, out);
                 }
@@ -1083,6 +1177,8 @@ fn walk_stmt(stmt: &Statement<'_>, out: &mut WalkCtx) {
                     // MAINT012: extract dead stores for this method scope.
                     let dead = extract_dead_stores_from_fn_body(&body.statements);
                     out.dead_stores.extend(dead);
+                    // MAINT016: detect unreachable statements in this method body.
+                    check_js_block_for_unreachable(&body.statements, &mut out.unreachable_stmts);
                     for s in &body.statements {
                         walk_stmt(s, out);
                     }
@@ -1120,6 +1216,8 @@ fn walk_decl(decl: &oxc_ast::ast::Declaration<'_>, out: &mut WalkCtx) {
                 // MAINT012: extract dead stores for this exported function scope.
                 let dead = extract_dead_stores_from_fn_body(&body.statements);
                 out.dead_stores.extend(dead);
+                // MAINT016: detect unreachable statements in this exported function body.
+                check_js_block_for_unreachable(&body.statements, &mut out.unreachable_stmts);
                 for s in &body.statements {
                     walk_stmt(s, out);
                 }
@@ -1136,6 +1234,8 @@ fn walk_decl(decl: &oxc_ast::ast::Declaration<'_>, out: &mut WalkCtx) {
                     // MAINT012: extract dead stores for this exported class method scope.
                     let dead = extract_dead_stores_from_fn_body(&body.statements);
                     out.dead_stores.extend(dead);
+                    // MAINT016: detect unreachable statements in this exported class method.
+                    check_js_block_for_unreachable(&body.statements, &mut out.unreachable_stmts);
                     for s in &body.statements {
                         walk_stmt(s, out);
                     }
@@ -1344,6 +1444,8 @@ fn walk_expr(expr: &Expression<'_>, out: &mut WalkCtx) {
         }
         Expression::UnaryExpression(u) => walk_expr(&u.argument, out),
         Expression::ConditionalExpression(c) => {
+            // BUG001: flag assignment in ternary test position.
+            check_assign_in_cond(&c.test, out);
             walk_expr(&c.test, out);
             walk_expr(&c.consequent, out);
             walk_expr(&c.alternate, out);

@@ -4,6 +4,7 @@
 //! registered alongside the language frontend via [`crate::register`].
 
 pub mod active_debug_code;
+pub mod assignment_in_condition;
 pub mod bind_all_interfaces;
 pub mod chain;
 pub mod dead_store;
@@ -17,3 +18,4 @@ pub mod log_injection;
 pub mod missing_default_case;
 pub mod perf;
 pub mod pkg;
+pub mod unreachable_code;

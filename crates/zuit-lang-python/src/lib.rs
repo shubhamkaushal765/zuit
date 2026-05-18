@@ -62,6 +62,12 @@ pub fn register(registry: &mut Registry) {
         analyzers::infinite_loop_no_exit::InfiniteLoopNoExitAnalyzer,
     ));
     registry.add_analyzer(Box::new(analyzers::dead_store::DeadStoreAnalyzer));
+    registry.add_analyzer(Box::new(
+        analyzers::global_var_density::GlobalVarDensityAnalyzer,
+    ));
+    registry.add_analyzer(Box::new(
+        analyzers::unreachable_code::UnreachableCodeAnalyzer,
+    ));
 
     // PKG — Packaging & Distribution (project-level)
     registry.add_analyzer(Box::new(

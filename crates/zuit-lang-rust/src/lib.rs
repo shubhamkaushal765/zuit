@@ -66,9 +66,10 @@ impl Language for RustLanguage {
 /// - `PKG001`–`PKG010` — Cargo.toml metadata rules
 /// - `HEALTH001`–`HEALTH005` — project health rules
 /// - `CHAIN001`–`CHAIN004` — supply chain rules
-/// - `PERF001`–`PERF003` — performance heuristics
+/// - `PERF001`–`PERF003`, `PERF010` — performance heuristics
 /// - `ECO001`–`ECO004` — ecosystem compatibility rules
 /// - `CI001`–`CI006` — CI/CD & release hygiene rules
+/// - `MAINT018-global-var-density` — per-file `pub static mut` count threshold
 /// - `CargoAuditAnalyzer` — `cargo audit` external-tool adapter
 /// - `CargoClippyAnalyzer` — `cargo clippy` external-tool adapter
 /// - `CargoGeigerAnalyzer` — `cargo geiger` external-tool adapter
@@ -101,6 +102,12 @@ pub fn register(registry: &mut Registry) {
         analyzers::infinite_loop_no_exit::InfiniteLoopNoExitAnalyzer,
     ));
     registry.add_analyzer(Box::new(analyzers::dead_store::RustDeadStoreAnalyzer));
+    registry.add_analyzer(Box::new(
+        analyzers::global_var_density::GlobalVarDensityAnalyzer,
+    ));
+    registry.add_analyzer(Box::new(
+        analyzers::unreachable_code::UnreachableCodeAnalyzer,
+    ));
 
     // SOUND family
     registry.add_analyzer(Box::new(
@@ -145,6 +152,7 @@ pub fn register(registry: &mut Registry) {
     registry.add_analyzer(Box::new(analyzers::perf::Perf001HeavyDefaultFeatures));
     registry.add_analyzer(Box::new(analyzers::perf::Perf002CloneInIterChain));
     registry.add_analyzer(Box::new(analyzers::perf::Perf003ArcMutexDensity));
+    registry.add_analyzer(Box::new(analyzers::perf::Perf010AllocationInLoop));
 
     // ECO family
     registry.add_analyzer(Box::new(analyzers::eco::Eco001NoNoStdFeature));
@@ -232,7 +240,8 @@ mod tests {
         register(&mut registry);
         assert_eq!(registry.language_count(), 1);
         // 1 (SEC101) + 1 (MAINT013) + 1 (MAINT009) + 1 (MAINT010) + 1 (MAINT012) + 6 SOUND
-        // + 10 PKG + 5 HEALTH + 4 CHAIN + 3 PERF + 4 ECO + 6 CI + 4 external + 1 (SEC015) = 51 total.
-        assert_eq!(registry.analyzer_count(), 51);
+        // + 10 PKG + 5 HEALTH + 4 CHAIN + 3 PERF + 1 PERF010 + 4 ECO + 6 CI + 4 external
+        // + 1 (SEC015) + 1 (MAINT018) + 1 (MAINT016) = 54 total.
+        assert_eq!(registry.analyzer_count(), 54);
     }
 }

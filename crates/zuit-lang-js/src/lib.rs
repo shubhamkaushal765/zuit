@@ -70,6 +70,7 @@ pub(crate) fn try_js_ast(parsed: &ParsedFile) -> Option<&JsAst> {
 /// into `registry`.
 ///
 /// Analyzers registered:
+/// - [`analyzers::assignment_in_condition::JsAssignmentInConditionAnalyzer`] (`BUG001-assignment-in-condition`)
 /// - [`analyzers::eval_sink::JsEvalSinkAnalyzer`] (`SEC002-eval-sink`)
 /// - [`analyzers::pkg::Pkg001InstallScriptAnalyzer`] (`PKG001-install-script-present`)
 /// - [`analyzers::pkg::Pkg002MissingTypesAnalyzer`] (`PKG002-missing-types`)
@@ -94,6 +95,9 @@ pub(crate) fn try_js_ast(parsed: &ParsedFile) -> Option<&JsAst> {
 /// - [`analyzers::external::dependency_cruiser::DependencyCruiserAnalyzer`] (`JS/dependency-cruiser-*`)
 pub fn register(registry: &mut Registry) {
     registry.add_language(Box::new(JsLanguage));
+    registry.add_analyzer(Box::new(
+        analyzers::assignment_in_condition::JsAssignmentInConditionAnalyzer,
+    ));
     registry.add_analyzer(Box::new(analyzers::eval_sink::JsEvalSinkAnalyzer));
     registry.add_analyzer(Box::new(analyzers::empty_block::JsEmptyBlockAnalyzer));
     registry.add_analyzer(Box::new(
@@ -113,6 +117,9 @@ pub fn register(registry: &mut Registry) {
         analyzers::infinite_loop_no_exit::JsInfiniteLoopNoExitAnalyzer,
     ));
     registry.add_analyzer(Box::new(analyzers::dead_store::JsDeadStoreAnalyzer));
+    registry.add_analyzer(Box::new(
+        analyzers::unreachable_code::JsUnreachableCodeAnalyzer,
+    ));
     registry.add_analyzer(Box::new(analyzers::pkg::Pkg001InstallScriptAnalyzer));
     registry.add_analyzer(Box::new(analyzers::pkg::Pkg002MissingTypesAnalyzer));
     registry.add_analyzer(Box::new(analyzers::pkg::Pkg003DualPackageHazardAnalyzer));
@@ -193,7 +200,7 @@ mod tests {
     fn register_adds_analyzer() {
         let mut registry = Registry::new();
         register(&mut registry);
-        assert_eq!(registry.analyzer_count(), 30);
+        assert_eq!(registry.analyzer_count(), 32);
     }
 
     #[test]

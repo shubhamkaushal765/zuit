@@ -269,6 +269,43 @@ pub(crate) struct RustAst {
     /// macros, since macro bodies are opaque and may silently consume variable
     /// names without any syntactic `Identifier` reference.
     pub(crate) has_macro_body: bool,
+
+    /// Spans of `pub static mut NAME: T = …;` declarations for
+    /// `MAINT018-global-var-density`.
+    ///
+    /// Populated by [`Extractor`] inside `visit_item_static`.  Only items that
+    /// are both `pub` (or `pub(restricted)`) **and** `mut` are included.
+    /// Private `static mut` and immutable `pub static` are excluded.
+    pub(crate) pub_static_muts: Vec<Span>,
+
+    /// Spans of the **first dead statement** in each block that contains
+    /// unreachable code, for `MAINT016-unreachable-code`.
+    ///
+    /// Populated by [`Extractor`] inside `visit_block`.  For each
+    /// [`syn::Block`] we scan its `Stmt` list for the first terminating
+    /// statement (`return`, `break`, `continue`, or a diverging macro such as
+    /// `panic!`, `unreachable!`, `todo!`, `unimplemented!`).  If at least one
+    /// non-`Pass`-equivalent statement follows, we record the byte span of
+    /// that first dead statement.  One entry per block — never one per dead
+    /// statement.
+    pub(crate) unreachable_stmts: Vec<Span>,
+
+    /// Spans of heap-allocating expressions that appear inside loop bodies
+    /// (`for`, `while`, or `loop`), for `PERF010-allocation-in-loop`.
+    ///
+    /// Populated by [`Extractor`] while `in_loop_depth > 0`.  Allocation
+    /// sites detected:
+    /// - `Vec::new()` / `Vec::with_capacity(…)` / `vec![]` macros
+    /// - `String::new()` / `String::with_capacity(…)` / `String::from(…)`
+    ///   / `.to_string()` / `.to_owned()` / `format!(…)` macro
+    /// - `Box::new(…)`
+    /// - `HashMap::new()` / `HashMap::with_capacity(…)` / `BTreeMap::new()`
+    /// - `HashSet::new()` / `BTreeSet::new()`
+    ///
+    /// Closures defined inside loops are recursed into (they run once per
+    /// outer iteration).  Nested `fn` item bodies are **not** recursed into
+    /// (they only run when called, not inline).
+    pub(crate) allocs_in_loop: Vec<Span>,
 }
 
 /// A dead-store site extracted for `MAINT012-dead-store` (Rust).
@@ -585,6 +622,18 @@ struct Extractor<'src> {
     /// Whether any non-empty macro body was encountered.
     has_macro_body: bool,
 
+    /// Spans of `pub static mut` declarations for `MAINT018-global-var-density`.
+    pub_static_muts: Vec<Span>,
+
+    /// First-dead-statement spans for `MAINT016-unreachable-code`.
+    unreachable_stmts: Vec<Span>,
+
+    /// Heap-allocating expression spans inside loop bodies for `PERF010`.
+    allocs_in_loop: Vec<Span>,
+
+    /// Current loop nesting depth for `PERF010`.
+    in_loop_depth: u32,
+
     source: &'src SourceFile,
     /// `true` while inside an `extern "…"` block.
     in_foreign_mod: bool,
@@ -617,6 +666,10 @@ impl<'src> Extractor<'src> {
             infinite_loops: Vec::new(),
             dead_stores: Vec::new(),
             has_macro_body: false,
+            pub_static_muts: Vec::new(),
+            unreachable_stmts: Vec::new(),
+            allocs_in_loop: Vec::new(),
+            in_loop_depth: 0,
             source,
             in_foreign_mod: false,
             pending_pub_struct_raw_ptr: Vec::new(),
@@ -755,6 +808,115 @@ fn collect_method_calls_in_block(
         clone_spans,
     };
     collector.visit_block(block);
+}
+
+// ── Unreachable-code helper for MAINT016 ─────────────────────────────────────
+
+/// Macro names that unconditionally diverge / terminate execution.
+const TERMINATING_MACROS_MAINT016: &[&str] = &["panic", "unreachable", "todo", "unimplemented"];
+
+/// Returns `true` if `stmt` is a terminating statement for MAINT016.
+///
+/// Terminating statements are: `return`, `break`, `continue`, and invocations
+/// of the four diverging macros (`panic!`, `unreachable!`, `todo!`,
+/// `unimplemented!`).
+fn is_terminating_stmt(stmt: &syn::Stmt) -> bool {
+    match stmt {
+        syn::Stmt::Expr(syn::Expr::Return(_) | syn::Expr::Break(_) | syn::Expr::Continue(_), _) => {
+            true
+        }
+        syn::Stmt::Macro(m) => {
+            let name = m
+                .mac
+                .path
+                .segments
+                .last()
+                .map(|s| s.ident.to_string())
+                .unwrap_or_default();
+            TERMINATING_MACROS_MAINT016.contains(&name.as_str())
+        }
+        // Also handle bare macro expressions (not Stmt::Macro but Expr::Macro wrapped in Stmt::Expr).
+        syn::Stmt::Expr(syn::Expr::Macro(em), _) => {
+            let name = em
+                .mac
+                .path
+                .segments
+                .last()
+                .map(|s| s.ident.to_string())
+                .unwrap_or_default();
+            TERMINATING_MACROS_MAINT016.contains(&name.as_str())
+        }
+        _ => false,
+    }
+}
+
+/// Scans a block's statement list for the first terminating statement and
+/// returns the byte span of the first following (dead) statement.
+///
+/// Returns `None` when the block has no terminating statement or when there
+/// is no statement after the terminator.
+fn first_dead_stmt_span(stmts: &[syn::Stmt], source: &SourceFile) -> Option<Span> {
+    let term_idx = stmts.iter().position(is_terminating_stmt)?;
+    // There must be at least one more statement after the terminator.
+    let dead_stmt = stmts.get(term_idx + 1)?;
+    let raw_span = stmt_proc_span(dead_stmt);
+    Some(proc_span_to_byte_span(raw_span, source))
+}
+
+/// Returns the `proc_macro2::Span` for a `syn::Stmt`.
+fn stmt_proc_span(stmt: &syn::Stmt) -> proc_macro2::Span {
+    use syn::spanned::Spanned;
+    match stmt {
+        syn::Stmt::Local(l) => l.let_token.span,
+        syn::Stmt::Item(i) => i.span(),
+        syn::Stmt::Expr(e, _) => e.span(),
+        syn::Stmt::Macro(m) => m.mac.path.span(),
+    }
+}
+
+// ── PERF010 allocation-site detection ────────────────────────────────────────
+
+/// Returns `true` if the call path matches a known heap-allocating constructor
+/// that PERF010 tracks.
+///
+/// Matched patterns (by last-two-segment suffix where relevant):
+/// - `Vec::new` / `Vec::with_capacity`
+/// - `String::new` / `String::with_capacity` / `String::from`
+/// - `Box::new`
+/// - `HashMap::new` / `HashMap::with_capacity`
+/// - `BTreeMap::new`
+/// - `HashSet::new`
+/// - `BTreeSet::new`
+fn is_allocating_call_path(path: &syn::Path) -> bool {
+    let segments: Vec<_> = path.segments.iter().collect();
+    let n = segments.len();
+    if n == 0 {
+        return false;
+    }
+    let last = segments[n - 1].ident.to_string();
+    // Single-segment shortcuts that are unambiguous.
+    match last.as_str() {
+        "new" | "with_capacity" => {
+            // Needs a type qualifier to be interesting.
+            if n < 2 {
+                return false;
+            }
+            let ty = segments[n - 2].ident.to_string();
+            matches!(
+                ty.as_str(),
+                "Vec" | "String" | "Box" | "HashMap" | "BTreeMap" | "HashSet" | "BTreeSet"
+            )
+        }
+        "from" => {
+            // `String::from(…)` — qualify by type segment.
+            if n < 2 {
+                return false;
+            }
+            let ty = segments[n - 2].ident.to_string();
+            ty == "String"
+        }
+        _ => false,
+    }
 }
 
 // ── Main visitor ─────────────────────────────────────────────────────────────
@@ -916,48 +1078,6 @@ impl<'ast> Visit<'ast> for Extractor<'_> {
         syn::visit::visit_foreign_item_fn(self, node);
     }
 
-    fn visit_expr_call(&mut self, node: &'ast syn::ExprCall) {
-        // SOUND003: detect transmute calls
-        if let syn::Expr::Path(ep) = &*node.func
-            && is_transmute_path(&ep.path)
-        {
-            let span = proc_span_to_byte_span(ep.path.span(), self.source);
-            self.transmute_calls.push(span);
-        }
-
-        // SEC013: detect bind-all-interfaces call sites.
-        if let syn::Expr::Path(ep) = &*node.func {
-            let last_seg = ep
-                .path
-                .segments
-                .last()
-                .map(|s| s.ident.to_string())
-                .unwrap_or_default();
-            if RUST_BIND_CALLEE_NAMES.contains(&last_seg.as_str()) {
-                // Extract the first argument string literal value, if any.
-                let first_arg_string_value = node.args.first().and_then(|arg| {
-                    if let syn::Expr::Lit(syn::ExprLit {
-                        lit: syn::Lit::Str(s),
-                        ..
-                    }) = arg
-                    {
-                        Some(s.value())
-                    } else {
-                        None
-                    }
-                });
-                let span = proc_span_to_byte_span(node.func.span(), self.source);
-                self.bind_call_sites.push(RustCallSite {
-                    callee_name: last_seg,
-                    first_arg_string_value,
-                    span,
-                });
-            }
-        }
-
-        syn::visit::visit_expr_call(self, node);
-    }
-
     fn visit_block(&mut self, node: &'ast syn::Block) {
         // PERF002: detect clone-in-iter-chain heuristic.
         // Within a single Block, collect all method-call names; if both an
@@ -970,6 +1090,12 @@ impl<'ast> Visit<'ast> for Extractor<'_> {
                 let span = proc_span_to_byte_span(raw, self.source);
                 self.clone_in_iter_chains.push(span);
             }
+        }
+
+        // MAINT016: find the first terminating statement in this block and
+        // record the byte span of the next statement (the first dead one).
+        if let Some(dead_span) = first_dead_stmt_span(&node.stmts, self.source) {
+            self.unreachable_stmts.push(dead_span);
         }
 
         syn::visit::visit_block(self, node);
@@ -992,7 +1118,10 @@ impl<'ast> Visit<'ast> for Extractor<'_> {
             let span = proc_span_to_byte_span(node.for_token.span, self.source);
             self.empty_blocks.push(span);
         }
+        // PERF010: increment loop depth while visiting the body.
+        self.in_loop_depth += 1;
         syn::visit::visit_expr_for_loop(self, node);
+        self.in_loop_depth -= 1;
     }
 
     fn visit_expr_while(&mut self, node: &'ast syn::ExprWhile) {
@@ -1000,12 +1129,16 @@ impl<'ast> Visit<'ast> for Extractor<'_> {
             let span = proc_span_to_byte_span(node.while_token.span, self.source);
             self.empty_blocks.push(span);
         }
+        // PERF010: increment loop depth while visiting the body.
+        self.in_loop_depth += 1;
         syn::visit::visit_expr_while(self, node);
+        self.in_loop_depth -= 1;
     }
 
     // MAINT011: detect debug-code macros (dbg!, println!, eprintln!).
     // SEC015: detect log-injection in logging macros.
     // MAINT012: track whether any non-empty macro body appears (for dead-store suppression).
+    // PERF010: detect allocating macros (vec!, format!) inside loop bodies.
     fn visit_macro(&mut self, node: &'ast syn::Macro) {
         let name = node
             .path
@@ -1031,7 +1164,7 @@ impl<'ast> Visit<'ast> for Extractor<'_> {
             let enclosing_fn_params = self.current_fn_params.last().cloned().unwrap_or_default();
             let (first_arg_string, arg_idents) = parse_log_macro_body(&body);
             self.log_calls.push(RustLogCallSite {
-                callee_name: name,
+                callee_name: name.clone(),
                 first_arg_string,
                 arg_idents,
                 enclosing_fn_params,
@@ -1043,6 +1176,12 @@ impl<'ast> Visit<'ast> for Extractor<'_> {
         // mark the file as having a macro body (opaque to dead-store analysis).
         if !node.tokens.is_empty() {
             self.has_macro_body = true;
+        }
+
+        // PERF010: flag allocating macros (`vec!`, `format!`) inside loop bodies.
+        if self.in_loop_depth > 0 && matches!(name.as_str(), "vec" | "format") {
+            let span = proc_span_to_byte_span(node.path.span(), self.source);
+            self.allocs_in_loop.push(span);
         }
 
         syn::visit::visit_macro(self, node);
@@ -1106,6 +1245,13 @@ impl<'ast> Visit<'ast> for Extractor<'_> {
                 span,
             });
         }
+
+        // MAINT018: track `pub static mut` declarations.
+        if Self::is_pub(&node.vis) && matches!(node.mutability, syn::StaticMutability::Mut(_)) {
+            let span = proc_span_to_byte_span(node.static_token.span, self.source);
+            self.pub_static_muts.push(span);
+        }
+
         syn::visit::visit_item_static(self, node);
     }
 
@@ -1161,8 +1307,103 @@ impl<'ast> Visit<'ast> for Extractor<'_> {
             let span = proc_span_to_byte_span(node.loop_token.span, self.source);
             self.infinite_loops.push(span);
         }
+        // PERF010: increment loop depth while visiting the body.
+        self.in_loop_depth += 1;
         // Always recurse so nested loops are also checked.
         syn::visit::visit_expr_loop(self, node);
+        self.in_loop_depth -= 1;
+    }
+
+    // PERF010: detect heap-allocating call expressions inside loop bodies.
+    fn visit_expr_call(&mut self, node: &'ast syn::ExprCall) {
+        // SOUND003: detect transmute calls
+        // (already handled below — we call super after our own checks)
+
+        // PERF010: check for allocating calls while inside a loop.
+        if self.in_loop_depth > 0
+            && let syn::Expr::Path(ep) = &*node.func
+            && is_allocating_call_path(&ep.path)
+        {
+            let span = proc_span_to_byte_span(node.func.span(), self.source);
+            self.allocs_in_loop.push(span);
+        }
+
+        // The original SOUND003 + SEC013 logic (previously in visit_expr_call
+        // which we now override) — replicated here to preserve existing behaviour.
+        if let syn::Expr::Path(ep) = &*node.func
+            && is_transmute_path(&ep.path)
+        {
+            let span = proc_span_to_byte_span(ep.path.span(), self.source);
+            self.transmute_calls.push(span);
+        }
+
+        // SEC013: detect bind-all-interfaces call sites.
+        if let syn::Expr::Path(ep) = &*node.func {
+            let last_seg = ep
+                .path
+                .segments
+                .last()
+                .map(|s| s.ident.to_string())
+                .unwrap_or_default();
+            if RUST_BIND_CALLEE_NAMES.contains(&last_seg.as_str()) {
+                let first_arg_string_value = node.args.first().and_then(|arg| {
+                    if let syn::Expr::Lit(syn::ExprLit {
+                        lit: syn::Lit::Str(s),
+                        ..
+                    }) = arg
+                    {
+                        Some(s.value())
+                    } else {
+                        None
+                    }
+                });
+                let span = proc_span_to_byte_span(node.func.span(), self.source);
+                self.bind_call_sites.push(RustCallSite {
+                    callee_name: last_seg,
+                    first_arg_string_value,
+                    span,
+                });
+            }
+        }
+
+        syn::visit::visit_expr_call(self, node);
+    }
+
+    // PERF010: detect `.to_string()` / `.to_owned()` method calls inside loops.
+    fn visit_expr_method_call(&mut self, node: &'ast syn::ExprMethodCall) {
+        if self.in_loop_depth > 0 {
+            let method = node.method.to_string();
+            if matches!(method.as_str(), "to_string" | "to_owned") {
+                let span = proc_span_to_byte_span(node.method.span(), self.source);
+                self.allocs_in_loop.push(span);
+            }
+        }
+        syn::visit::visit_expr_method_call(self, node);
+    }
+
+    // PERF010: nested fn-item definitions inside loop bodies must NOT be
+    // descended into — the fn body only runs when called, not inline.
+    // We override visit_item_fn to save/restore the loop depth around it.
+    // NOTE: visit_item_fn in syn::visit calls into the fn body; by zeroing the
+    // depth before recursing we suppress PERF010 detection inside the fn body.
+    // We restore after so outer loop context is maintained.
+    //
+    // We do this by overriding `visit_item` (which is called for inline items
+    // such as `fn` definitions inside blocks) to zero the loop depth while
+    // visiting any item kind that introduces a new call frame.
+    fn visit_item(&mut self, node: &'ast syn::Item) {
+        // For nested fn / impl / trait items, their bodies only run when
+        // explicitly called — not inline.  Zero the loop depth while visiting
+        // them so PERF010 doesn't fire inside their bodies.
+        let saved_depth = self.in_loop_depth;
+        match node {
+            syn::Item::Fn(_) | syn::Item::Impl(_) | syn::Item::Trait(_) => {
+                self.in_loop_depth = 0;
+            }
+            _ => {}
+        }
+        syn::visit::visit_item(self, node);
+        self.in_loop_depth = saved_depth;
     }
 }
 
@@ -1457,6 +1698,9 @@ pub(crate) fn parse(source: Arc<SourceFile>) -> Result<ParsedFile, ParseError> {
             infinite_loops: extractor.infinite_loops,
             dead_stores: extractor.dead_stores,
             has_macro_body: extractor.has_macro_body,
+            pub_static_muts: extractor.pub_static_muts,
+            unreachable_stmts: extractor.unreachable_stmts,
+            allocs_in_loop: extractor.allocs_in_loop,
         })
     };
 
