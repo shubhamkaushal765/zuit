@@ -17,6 +17,7 @@ pub mod health;
 pub mod infinite_loop_no_exit;
 pub mod log_injection;
 pub mod missing_default_case;
+pub mod operator_precedence;
 pub mod perf;
 pub mod pkg;
 pub mod switch_fallthrough;

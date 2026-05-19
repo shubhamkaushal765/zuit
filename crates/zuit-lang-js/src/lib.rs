@@ -71,6 +71,7 @@ pub(crate) fn try_js_ast(parsed: &ParsedFile) -> Option<&JsAst> {
 ///
 /// Analyzers registered:
 /// - [`analyzers::assignment_in_condition::JsAssignmentInConditionAnalyzer`] (`BUG001-assignment-in-condition`)
+/// - [`analyzers::operator_precedence::JsOperatorPrecedenceAnalyzer`] (`BUG004-operator-precedence`)
 /// - [`analyzers::eval_sink::JsEvalSinkAnalyzer`] (`SEC002-eval-sink`)
 /// - [`analyzers::pkg::Pkg001InstallScriptAnalyzer`] (`PKG001-install-script-present`)
 /// - [`analyzers::pkg::Pkg002MissingTypesAnalyzer`] (`PKG002-missing-types`)
@@ -122,6 +123,9 @@ pub fn register(registry: &mut Registry) {
     ));
     registry.add_analyzer(Box::new(
         analyzers::switch_fallthrough::JsSwitchFallthroughAnalyzer,
+    ));
+    registry.add_analyzer(Box::new(
+        analyzers::operator_precedence::JsOperatorPrecedenceAnalyzer,
     ));
     registry.add_analyzer(Box::new(
         analyzers::deprecated_function::JsDeprecatedFunctionAnalyzer,
@@ -206,7 +210,7 @@ mod tests {
     fn register_adds_analyzer() {
         let mut registry = Registry::new();
         register(&mut registry);
-        assert_eq!(registry.analyzer_count(), 34);
+        assert_eq!(registry.analyzer_count(), 35);
     }
 
     #[test]

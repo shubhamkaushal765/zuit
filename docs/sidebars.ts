@@ -74,6 +74,7 @@ const sidebars: SidebarsConfig = {
           items: [
             'rules/BUG001-assignment-in-condition',
             'rules/BUG002-switch-fallthrough',
+            'rules/BUG004-operator-precedence',
           ],
         },
         {

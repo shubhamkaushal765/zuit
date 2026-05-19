@@ -20,7 +20,7 @@ use zuit_core::{ByteOffset, LanguageId, ParseError, ParsedFile, SourceFile, Span
 use crate::native_ast::{
     DomSinkKind, JsAssignInCondSite, JsAssignmentSite, JsAst, JsBindCallSite, JsCallSite, JsCallee,
     JsCaseFallthrough, JsDeadStore, JsDebugKind, JsDomSink, JsImport, JsLiteralValue,
-    JsLogCallSite, JsSwitchSite,
+    JsLogCallSite, JsOpPrecedenceKind, JsOpPrecedenceSite, JsSwitchSite,
 };
 
 /// Parses `source` as JavaScript or TypeScript and returns a populated
@@ -116,6 +116,8 @@ struct WalkCtx {
     unreachable_stmts: Vec<Span>,
     /// Fall-through `case` sites for `BUG002-switch-fallthrough`.
     case_fallthroughs: Vec<JsCaseFallthrough>,
+    /// Operator-precedence trap sites for `BUG004-operator-precedence`.
+    op_precedence_sites: Vec<JsOpPrecedenceSite>,
     /// Snapshot of the full source text. Needed by the BUG002 fallthrough
     /// detector to inspect the comment immediately before a `case` clause.
     source_text: Arc<str>,
@@ -141,6 +143,7 @@ impl WalkCtx {
             assignment_in_conditions: Vec::new(),
             unreachable_stmts: Vec::new(),
             case_fallthroughs: Vec::new(),
+            op_precedence_sites: Vec::new(),
             source_text,
         }
     }
@@ -190,6 +193,7 @@ fn extract_call_sites(program: &Program<'_>, source_text: Arc<str>) -> JsAst {
         assignment_in_conditions: ctx.assignment_in_conditions,
         unreachable_stmts: ctx.unreachable_stmts,
         case_fallthroughs: ctx.case_fallthroughs,
+        op_precedence_sites: ctx.op_precedence_sites,
     }
 }
 
@@ -1028,6 +1032,214 @@ fn assignment_operator_str(op: oxc_ast::ast::AssignmentOperator) -> &'static str
     }
 }
 
+/// Maps a [`oxc_ast::ast::BinaryOperator`] to a static display string if it is
+/// a **non-shift** bitwise operator (`&`, `|`, `^`), or `None` otherwise.
+///
+/// Shift operators (`<<`, `>>`, `>>>`) bind **tighter** than comparison
+/// operators in JavaScript, so `a << b == c` parses as `(a << b) == c` — the
+/// programmer's intent is already reflected and no footgun exists.  Use
+/// [`js_shift_op_str`] when you specifically need shift operators.
+fn js_bitwise_non_shift_op_str(op: oxc_ast::ast::BinaryOperator) -> Option<&'static str> {
+    use oxc_ast::ast::BinaryOperator;
+    match op {
+        BinaryOperator::BitwiseAnd => Some("&"),
+        BinaryOperator::BitwiseOR => Some("|"),
+        BinaryOperator::BitwiseXOR => Some("^"),
+        _ => None,
+    }
+}
+
+/// Maps a [`oxc_ast::ast::BinaryOperator`] to a static display string if it is
+/// a bitwise shift operator (`<<`, `>>`, `>>>`), or `None` otherwise.
+///
+/// Kept separate from [`js_bitwise_non_shift_op_str`] because shifts bind
+/// **tighter** than comparisons and therefore do **not** produce the CWE-783
+/// footgun that `&`/`|`/`^` do when mixed with `==`/`<`/etc.
+#[allow(dead_code)]
+fn js_shift_op_str(op: oxc_ast::ast::BinaryOperator) -> Option<&'static str> {
+    use oxc_ast::ast::BinaryOperator;
+    match op {
+        BinaryOperator::ShiftLeft => Some("<<"),
+        BinaryOperator::ShiftRight => Some(">>"),
+        BinaryOperator::ShiftRightZeroFill => Some(">>>"),
+        _ => None,
+    }
+}
+
+/// Maps a [`oxc_ast::ast::BinaryOperator`] to a static display string if it is
+/// a comparison operator, or `None` otherwise.
+fn js_comparison_op_str(op: oxc_ast::ast::BinaryOperator) -> Option<&'static str> {
+    use oxc_ast::ast::BinaryOperator;
+    match op {
+        BinaryOperator::Equality => Some("=="),
+        BinaryOperator::Inequality => Some("!="),
+        BinaryOperator::StrictEquality => Some("==="),
+        BinaryOperator::StrictInequality => Some("!=="),
+        BinaryOperator::LessThan => Some("<"),
+        BinaryOperator::LessEqualThan => Some("<="),
+        BinaryOperator::GreaterThan => Some(">"),
+        BinaryOperator::GreaterEqualThan => Some(">="),
+        BinaryOperator::Instanceof => Some("instanceof"),
+        BinaryOperator::In => Some("in"),
+        _ => None,
+    }
+}
+
+/// Returns `true` when the argument of a `!` unary expression is a "plain"
+/// operand shape that makes the `!x & y` footgun ambiguous.
+///
+/// Only identifiers (`x`, `flag`) and member accesses (`obj.flag`, `obj[key]`)
+/// qualify as footgun-worthy: the developer likely forgot that `!` binds
+/// tighter than `&`/`|`/`^`.  Parenthesized expressions, calls, and literals
+/// express explicit intent and are NOT flagged.
+fn is_bang_arg_in_footgun_allowlist(expr: &Expression<'_>) -> bool {
+    matches!(
+        expr,
+        Expression::Identifier(_)
+            | Expression::StaticMemberExpression(_)
+            | Expression::ComputedMemberExpression(_)
+    )
+}
+
+/// Unwrap a TypeScript type assertion (`x as T`, `x satisfies T`, `<T>x`) to
+/// the underlying expression.  Used by Pattern 2 to see through TS casts that
+/// would otherwise mask a `!`-on-name footgun.
+///
+/// Note: `ParenthesizedExpression` is intentionally NOT unwrapped here — the
+/// existing carve-out at the call site suppresses findings when the user has
+/// explicitly added parens to disambiguate intent.
+fn unwrap_ts_type_assertion<'a>(expr: &'a Expression<'a>) -> &'a Expression<'a> {
+    match expr {
+        Expression::TSAsExpression(t) => unwrap_ts_type_assertion(&t.expression),
+        Expression::TSSatisfiesExpression(t) => unwrap_ts_type_assertion(&t.expression),
+        Expression::TSTypeAssertion(t) => unwrap_ts_type_assertion(&t.expression),
+        _ => expr,
+    }
+}
+
+/// Checks a `BinaryExpression` for operator-precedence traps and pushes a
+/// [`JsOpPrecedenceSite`] onto `out.op_precedence_sites` when one is detected.
+///
+/// Two patterns are detected:
+/// 1. Non-shift bitwise (`&`/`|`/`^`) mixed with a comparison op without
+///    parens (either operand order).  Shift operators (`<<`/`>>`/`>>>`) are
+///    explicitly excluded because they bind **tighter** than comparison
+///    operators in JavaScript (`a << b == c` parses as `(a << b) == c`, which
+///    is exactly what the programmer wrote — no footgun exists).
+/// 2. `!ident` or `!member` as either operand of `&`/`|`/`^`: `!x & y` or
+///    `y & !x`.  Both orderings are the same footgun.  When both sides qualify
+///    (e.g. `!x & !y`) only one site is pushed to avoid double-counting.
+///    The `!` argument must be an [`Identifier`], [`StaticMemberExpression`],
+///    or [`ComputedMemberExpression`]; parenthesized subexpressions, calls, and
+///    literals are accepted as expressing explicit intent and are NOT flagged.
+fn check_op_precedence(b: &oxc_ast::ast::BinaryExpression<'_>, out: &mut WalkCtx) {
+    use oxc_ast::ast::UnaryOperator;
+
+    // Pattern 1: non-shift bitwise outer, comparison inner (either side).
+    if let Some(outer_str) = js_bitwise_non_shift_op_str(b.operator) {
+        for operand in [&b.left, &b.right] {
+            if matches!(operand, Expression::ParenthesizedExpression(_)) {
+                continue;
+            }
+            if let Expression::BinaryExpression(inner) = operand
+                && let Some(inner_str) = js_comparison_op_str(inner.operator)
+            {
+                out.op_precedence_sites.push(JsOpPrecedenceSite {
+                    span: oxc_span_to_core(b.span),
+                    kind: JsOpPrecedenceKind::BitwiseWithComparison,
+                    outer_operator: outer_str,
+                    inner_operator: inner_str,
+                });
+                return;
+            }
+        }
+
+        // Pattern 2: `!ident` / `!member` as either operand of `&`/`|`/`^`.
+        // Check left side first; if it qualifies, emit once and return so that
+        // `!x & !y` never produces two findings for the same BinaryExpression.
+        // TS type-assertion wrappers (`as T`, `satisfies T`, `<T>x`) are
+        // transparent to this check via `unwrap_ts_type_assertion`.
+        let left_qualifies = !matches!(b.left, Expression::ParenthesizedExpression(_))
+            && if let Expression::UnaryExpression(u) = unwrap_ts_type_assertion(&b.left) {
+                u.operator == UnaryOperator::LogicalNot
+                    && is_bang_arg_in_footgun_allowlist(&u.argument)
+            } else {
+                false
+            };
+
+        if left_qualifies {
+            out.op_precedence_sites.push(JsOpPrecedenceSite {
+                span: oxc_span_to_core(b.span),
+                kind: JsOpPrecedenceKind::NotWithBitwise,
+                outer_operator: outer_str,
+                inner_operator: "!",
+            });
+            return;
+        }
+
+        // Check right side for the symmetric case (`y & !x`).
+        let right_qualifies = !matches!(b.right, Expression::ParenthesizedExpression(_))
+            && if let Expression::UnaryExpression(u) = unwrap_ts_type_assertion(&b.right) {
+                u.operator == UnaryOperator::LogicalNot
+                    && is_bang_arg_in_footgun_allowlist(&u.argument)
+            } else {
+                false
+            };
+
+        if right_qualifies {
+            out.op_precedence_sites.push(JsOpPrecedenceSite {
+                span: oxc_span_to_core(b.span),
+                kind: JsOpPrecedenceKind::NotWithBitwise,
+                outer_operator: outer_str,
+                inner_operator: "!",
+            });
+        }
+    }
+    // Note: Pattern 1b (comparison outer, shift inner) has been intentionally
+    // removed.  Shifts bind tighter than comparisons in JS, so the AST for
+    // `a << b == c` is already `(a << b) == c` — the programmer's intent is
+    // reflected and flagging it would be a false positive.
+}
+
+/// BUG004 Pattern 3: TypeScript `!ident as T & U` intersection-type trap.
+///
+/// In TypeScript, the `as` keyword has higher precedence than bitwise `&`
+/// (both are given `Precedence::Compare = 13`, with `&` at `BitwiseAnd = 11`).
+/// As a result, `!x as boolean & MASK` is parsed by oxc as:
+///   `TSAsExpression { expression: !x, type: TSIntersectionType(boolean, MASK) }`
+/// rather than the programmer's likely intention of:
+///   `(!x as boolean) & MASK`  (bitwise AND with `MASK` as a value).
+///
+/// When the cast expression is a `!ident`/`!member` and the type annotation is
+/// a `TSIntersectionType`, this is the same CWE-783 precedence footgun as
+/// Pattern 2 — flag it with `NotWithBitwise`.
+fn check_op_precedence_ts_as(e: &oxc_ast::ast::TSAsExpression<'_>, out: &mut WalkCtx) {
+    use oxc_ast::ast::{TSType, UnaryOperator};
+
+    // Only flag when the type annotation is an intersection type (T & U …).
+    if !matches!(e.type_annotation, TSType::TSIntersectionType(_)) {
+        return;
+    }
+
+    // The cast expression must be `!ident` or `!member`.
+    let Expression::UnaryExpression(u) = &e.expression else {
+        return;
+    };
+    if u.operator != UnaryOperator::LogicalNot {
+        return;
+    }
+    if !is_bang_arg_in_footgun_allowlist(&u.argument) {
+        return;
+    }
+
+    out.op_precedence_sites.push(JsOpPrecedenceSite {
+        span: oxc_span_to_core(e.span),
+        kind: JsOpPrecedenceKind::NotWithTsIntersection,
+        outer_operator: "as",
+        inner_operator: "!",
+    });
+}
+
 /// If `expr` is an `AssignmentExpression` (but NOT a parenthesized one —
 /// the `ESLint` `"except-parens"` carve-out), pushes a
 /// [`JsAssignInCondSite`] onto `out.assignment_in_conditions`.
@@ -1523,6 +1735,7 @@ fn walk_expr(expr: &Expression<'_>, out: &mut WalkCtx) {
             out.at_top_level = prev;
         }
         Expression::BinaryExpression(b) => {
+            check_op_precedence(b, out); // BUG004
             walk_expr(&b.left, out);
             walk_expr(&b.right, out);
         }
@@ -1603,7 +1816,19 @@ fn walk_expr(expr: &Expression<'_>, out: &mut WalkCtx) {
             }
         }
         // TS wrappers — unwrap and recurse
-        Expression::TSAsExpression(e) => walk_expr(&e.expression, out),
+        Expression::TSAsExpression(e) => {
+            // BUG004 Pattern 3: `!ident as T & U` — in TS, `as` has higher
+            // precedence than `&`, so `!x as boolean & MASK` is parsed by
+            // TypeScript as `!x as (boolean & MASK)` (an intersection type),
+            // NOT as `(!x as boolean) & MASK` (bitwise AND with a value).
+            // The programmer almost certainly meant the latter — this is the
+            // same CWE-783 footgun as Pattern 2, just disguised at the type
+            // level.  Flag it when:
+            //   (a) the cast expression is a `!ident`/`!member`, AND
+            //   (b) the type annotation is a TS intersection type (`T & U`).
+            check_op_precedence_ts_as(e, out);
+            walk_expr(&e.expression, out);
+        }
         Expression::TSSatisfiesExpression(e) => walk_expr(&e.expression, out),
         Expression::TSNonNullExpression(e) => walk_expr(&e.expression, out),
         Expression::TSTypeAssertion(e) => walk_expr(&e.expression, out),

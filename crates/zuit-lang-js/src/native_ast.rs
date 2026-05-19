@@ -265,6 +265,11 @@ pub struct JsAst {
     /// `case` clauses that silently fall through to the next clause, for
     /// `BUG002-switch-fallthrough`.  See [`JsCaseFallthrough`].
     pub case_fallthroughs: Vec<JsCaseFallthrough>,
+
+    /// Operator-precedence trap sites for `BUG004-operator-precedence` (CWE-783).
+    ///
+    /// See [`JsOpPrecedenceSite`].  Empty when no such patterns are present.
+    pub op_precedence_sites: Vec<JsOpPrecedenceSite>,
 }
 
 /// An assignment-in-condition site extracted for `BUG001-assignment-in-condition`.
@@ -286,6 +291,58 @@ pub struct JsAssignInCondSite {
     pub span: Span,
     /// The assignment operator as a display string (e.g. `"="`, `"+="`, …).
     pub operator: &'static str,
+}
+
+/// Kind of operator-precedence trap for `BUG004-operator-precedence`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum JsOpPrecedenceKind {
+    /// `a & b == c` — non-shift bitwise op (`&`/`|`/`^`) mixed with a
+    /// comparison op without parens.  Shift operators (`<<`/`>>`/`>>>`) are
+    /// **not** included here because they bind tighter than comparisons in JS
+    /// and therefore produce no precedence surprise.
+    BitwiseWithComparison,
+    /// `!ident & y` or `y & !ident` — unary `!` applied to a plain identifier
+    /// or member access on either side of a bitwise op.  Both left-hand and
+    /// right-hand positions are detected (symmetric).
+    ///
+    /// Allowed argument shapes for the `!` operand (footgun qualifiers):
+    /// - `Identifier` — e.g. `!x`, `!flag`, `!isReady`
+    /// - `StaticMemberExpression` — e.g. `!obj.flag`
+    /// - `ComputedMemberExpression` — e.g. `!obj[key]`
+    ///
+    /// Shapes that are NOT flagged (explicit intent):
+    /// - `ParenthesizedExpression` — e.g. `!(a == b)`
+    /// - `CallExpression` — e.g. `!foo()`
+    /// - Literals, template literals, etc.
+    NotWithBitwise,
+    /// `!x as boolean & MASK` — TypeScript greedily consumed `boolean & MASK`
+    /// as a `TSIntersectionType`, masking the user's intended value-level
+    /// bitwise AND. The user almost certainly wanted `(!x as boolean) & MASK`.
+    NotWithTsIntersection,
+}
+
+/// A site flagged by `BUG004-operator-precedence` (CWE-783).
+///
+/// Populated for `BinaryExpression`s where:
+/// - the operator is a non-shift bitwise op (`&`/`|`/`^`) and an operand
+///   is a non-parenthesized comparison `BinaryExpression`, OR
+/// - the operator is `&`/`|`/`^` and either operand is a non-parenthesized
+///   `UnaryExpression(!ident)` / `UnaryExpression(!member)`.
+///
+/// `ParenthesizedExpression` wrappers around the suspicious operand suppress
+/// the finding.  When both sides of a `&`/`|`/`^` expression qualify for the
+/// `NotWithBitwise` pattern (e.g. `!x & !y`) only one site is pushed.
+#[derive(Debug, Clone)]
+pub struct JsOpPrecedenceSite {
+    /// Byte span of the outer `BinaryExpression`.
+    pub span: Span,
+    /// Which precedence trap was detected.
+    pub kind: JsOpPrecedenceKind,
+    /// Display string of the outer operator, e.g. `"&"`, `"<<"`, `"|"`.
+    pub outer_operator: &'static str,
+    /// Display string of the inner construct (a comparison op such as `"=="`,
+    /// or `"!"` for the `NotWithBitwise` variant).
+    pub inner_operator: &'static str,
 }
 
 /// A dead-store site extracted for `MAINT012-dead-store`.
