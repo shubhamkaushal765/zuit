@@ -363,10 +363,10 @@ mod tests {
     /// When the subprocess takes too long, the analyzer must emit a single
     /// Medium finding with rule `PLUGIN/<name>-timeout`.
     ///
-    /// Approach: write a temporary `sleep 5` script via `tempfile::NamedTempFile`,
-    /// make it executable, and construct a `PluginManifest` directly (bypassing
-    /// `load_from_str` validation) with `timeout_seconds = 1`. We construct the
-    /// struct directly because `load_from_str` rejects `timeout_seconds = 0`.
+    /// Approach: write a temporary busy-loop script via `tempfile::NamedTempFile`,
+    /// then call `into_temp_path()` to close the writable fd before exec — this
+    /// avoids `ETXTBSY` on Linux (open-for-write fd prevents script execution).
+    /// Manifest is constructed directly because `load_from_str` rejects `timeout_seconds = 0`.
     #[test]
     fn timeout_emits_warning() {
         // Write a temporary sleep script.
@@ -379,7 +379,7 @@ mod tests {
         script
             .write_all(b"#!/usr/bin/env sh\nwhile true; do printf 'x'; done\n")
             .expect("write must succeed");
-        let script_path = script.path().to_path_buf();
+        let script_path: tempfile::TempPath = script.into_temp_path();
 
         // Make it executable.
         std::fs::set_permissions(&script_path, std::fs::Permissions::from_mode(0o755))
@@ -426,8 +426,5 @@ mod tests {
         let f = &findings[0];
         assert_eq!(f.rule_id, "PLUGIN/timeout-test-timeout");
         assert_eq!(f.severity, Severity::Medium);
-
-        // Keep `script` alive until here so the file is not deleted early.
-        drop(script);
     }
 }

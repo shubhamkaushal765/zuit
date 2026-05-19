@@ -650,6 +650,8 @@ fn compute_scores(findings: &[Finding], kloc: f32) -> BTreeMap<Dimension, Score>
 mod tests {
     use super::*;
     use std::fs;
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
     use tempfile::TempDir;
 
     use crate::analyzer::{
@@ -1556,12 +1558,14 @@ overrides = { "tests/**" = "ignore" }
 
     // ---- Feature 3: parallel project-level analyzers ------------------------
 
-    /// A `ProjectLevel` analyzer that sleeps 50ms per call and returns one finding.
-    struct SlowProjectAnalyzer {
+    /// A `ProjectLevel` analyzer that probes concurrency via atomic counters.
+    struct ConcurrencyProbeAnalyzer {
         rule_id: &'static str,
+        in_flight: Arc<AtomicUsize>,
+        peak: Arc<AtomicUsize>,
     }
 
-    impl Analyzer for SlowProjectAnalyzer {
+    impl Analyzer for ConcurrencyProbeAnalyzer {
         fn id(&self) -> AnalyzerId {
             AnalyzerId::new(self.rule_id)
         }
@@ -1585,7 +1589,12 @@ overrides = { "tests/**" = "ignore" }
             _ctx: &AnalysisContext<'_>,
             project: &crate::analyzer::Project,
         ) -> Vec<Finding> {
+            // Record concurrent in-flight count for the parallelism assertion.
+            let now = self.in_flight.fetch_add(1, Ordering::SeqCst) + 1;
+            self.peak.fetch_max(now, Ordering::SeqCst);
             std::thread::sleep(std::time::Duration::from_millis(50));
+            self.in_flight.fetch_sub(1, Ordering::SeqCst);
+
             vec![Finding {
                 analyzer: AnalyzerId::new(self.rule_id),
                 dimension: Dimension::Maintainability,
@@ -1610,36 +1619,39 @@ overrides = { "tests/**" = "ignore" }
     fn project_level_analyzers_run_in_parallel() {
         let tmp = TempDir::new().unwrap();
 
+        let in_flight = Arc::new(AtomicUsize::new(0));
+        let peak = Arc::new(AtomicUsize::new(0));
+
         let mut r = Registry::new();
         r.add_language(Box::new(MockLanguage {
             id: LanguageId("mock"),
             exts: &["mock"],
         }));
-        r.add_analyzer(Box::new(SlowProjectAnalyzer { rule_id: "PROJ001" }));
-        r.add_analyzer(Box::new(SlowProjectAnalyzer { rule_id: "PROJ002" }));
+        r.add_analyzer(Box::new(ConcurrencyProbeAnalyzer {
+            rule_id: "PROJ001",
+            in_flight: in_flight.clone(),
+            peak: peak.clone(),
+        }));
+        r.add_analyzer(Box::new(ConcurrencyProbeAnalyzer {
+            rule_id: "PROJ002",
+            in_flight: in_flight.clone(),
+            peak: peak.clone(),
+        }));
 
         let engine = Engine::new(r);
         let config = Config::default();
 
-        // Warm up rayon's thread pool: cold-start spawn cost on macOS CI runners
-        // routinely adds 30–50ms to the first parallel iteration, which would
-        // be falsely attributed to "not running in parallel" otherwise.
-        let _ = engine.analyze_path(tmp.path(), &config).unwrap();
-
-        let t0 = std::time::Instant::now();
         let report = engine.analyze_path(tmp.path(), &config).unwrap();
-        let elapsed = t0.elapsed();
 
-        // Always: both analyzers must have returned their findings.
+        // Both analyzers must have returned their findings.
         assert_eq!(report.findings.len(), 2, "both project analyzers must emit");
 
-        // Wall-time: only gate when rayon has multiple threads. Threshold is the
-        // serial floor (2 × 50ms sleep = 100ms — `std::thread::sleep` guarantees
-        // at-least, so anything <100ms can only have happened in parallel).
+        // Concurrency: only gate when rayon has multiple threads available.
         if rayon::current_num_threads() > 1 {
-            assert!(
-                elapsed < std::time::Duration::from_millis(100),
-                "parallel project analyzers should finish in <100ms (serial floor), took {elapsed:?}"
+            assert_eq!(
+                peak.load(Ordering::SeqCst),
+                2,
+                "project analyzers must run concurrently (peak in-flight == 2)"
             );
         }
     }
