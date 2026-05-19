@@ -39,6 +39,7 @@ pub fn try_python_ast(parsed: &ParsedFile) -> Option<&rustpython_parser::ast::Mo
 /// into `registry`.
 ///
 /// Call this once during application start-up (e.g. in `Registry::builtin()`).
+#[allow(clippy::too_many_lines)]
 pub fn register(registry: &mut Registry) {
     registry.add_language(Box::new(PythonLanguage));
 
@@ -62,6 +63,12 @@ pub fn register(registry: &mut Registry) {
         analyzers::infinite_loop_no_exit::InfiniteLoopNoExitAnalyzer,
     ));
     registry.add_analyzer(Box::new(analyzers::dead_store::DeadStoreAnalyzer));
+    registry.add_analyzer(Box::new(
+        analyzers::deprecated_function::DeprecatedFunctionAnalyzer,
+    ));
+    registry.add_analyzer(Box::new(
+        analyzers::dangerous_function::DangerousFunctionAnalyzer,
+    ));
     registry.add_analyzer(Box::new(
         analyzers::global_var_density::GlobalVarDensityAnalyzer,
     ));

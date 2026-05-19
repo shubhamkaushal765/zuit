@@ -19,7 +19,8 @@ use zuit_core::{ByteOffset, LanguageId, ParseError, ParsedFile, SourceFile, Span
 
 use crate::native_ast::{
     DomSinkKind, JsAssignInCondSite, JsAssignmentSite, JsAst, JsBindCallSite, JsCallSite, JsCallee,
-    JsDeadStore, JsDebugKind, JsDomSink, JsImport, JsLiteralValue, JsLogCallSite, JsSwitchSite,
+    JsCaseFallthrough, JsDeadStore, JsDebugKind, JsDomSink, JsImport, JsLiteralValue,
+    JsLogCallSite, JsSwitchSite,
 };
 
 /// Parses `source` as JavaScript or TypeScript and returns a populated
@@ -54,7 +55,8 @@ pub(crate) fn parse(source: Arc<SourceFile>) -> Result<ParsedFile, ParseError> {
     let semantic_index = index_program(&ret.program, &source);
 
     // Walk the AST to extract call sites before the arena is dropped.
-    let js_ast = extract_call_sites(&ret.program);
+    let source_text: Arc<str> = Arc::from(text);
+    let js_ast = extract_call_sites(&ret.program, source_text);
 
     Ok(ParsedFile::new(
         LanguageId("javascript"),
@@ -112,10 +114,15 @@ struct WalkCtx {
     assignment_in_conditions: Vec<JsAssignInCondSite>,
     /// First-dead-statement spans for `MAINT016-unreachable-code`.
     unreachable_stmts: Vec<Span>,
+    /// Fall-through `case` sites for `BUG002-switch-fallthrough`.
+    case_fallthroughs: Vec<JsCaseFallthrough>,
+    /// Snapshot of the full source text. Needed by the BUG002 fallthrough
+    /// detector to inspect the comment immediately before a `case` clause.
+    source_text: Arc<str>,
 }
 
 impl WalkCtx {
-    fn new() -> Self {
+    fn new(source_text: Arc<str>) -> Self {
         Self {
             call_sites: Vec::new(),
             dom_sinks: Vec::new(),
@@ -133,6 +140,8 @@ impl WalkCtx {
             dead_stores: Vec::new(),
             assignment_in_conditions: Vec::new(),
             unreachable_stmts: Vec::new(),
+            case_fallthroughs: Vec::new(),
+            source_text,
         }
     }
 }
@@ -147,8 +156,8 @@ impl WalkCtx {
 ///    targeted walk is simpler and faster than a full visitor pass.
 /// 2. Avoids the lifetime complexity of hooking into oxc's visitor framework
 ///    while also building a mutable accumulator.
-fn extract_call_sites(program: &Program<'_>) -> JsAst {
-    let mut ctx = WalkCtx::new();
+fn extract_call_sites(program: &Program<'_>, source_text: Arc<str>) -> JsAst {
+    let mut ctx = WalkCtx::new(source_text);
 
     // First pass: collect static import declarations (ES module `import` stmts).
     for stmt in &program.body {
@@ -180,6 +189,7 @@ fn extract_call_sites(program: &Program<'_>) -> JsAst {
         dead_stores: ctx.dead_stores,
         assignment_in_conditions: ctx.assignment_in_conditions,
         unreachable_stmts: ctx.unreachable_stmts,
+        case_fallthroughs: ctx.case_fallthroughs,
     }
 }
 
@@ -467,6 +477,69 @@ fn check_js_block_for_unreachable(stmts: &[Statement<'_>], out: &mut Vec<Span>) 
         use oxc_span::GetSpan;
         out.push(oxc_span_to_core(dead.span()));
     }
+}
+
+// ── Fall-through helpers for BUG002 ──────────────────────────────────────────
+
+/// Returns `true` if the case's consequent ends with a terminating statement.
+///
+/// A single `BlockStatement` consequent is unwrapped: `case 1: { …; break; }`
+/// is treated like a flat list ending in `break`.
+fn case_consequent_is_terminating(consequent: &[Statement<'_>]) -> bool {
+    if consequent.len() == 1
+        && let Statement::BlockStatement(b) = &consequent[0]
+    {
+        return b.body.last().is_some_and(is_js_terminating);
+    }
+    consequent.last().is_some_and(is_js_terminating)
+}
+
+/// Returns `true` if the source text immediately before `next_case_start`
+/// contains an ESLint-style `// falls through` / `/* fallthrough */` comment
+/// (case-insensitive).  The walk skips whitespace between the comment and the
+/// `case` keyword so the carve-out tolerates formatting variation.
+fn has_fallthrough_carveout(source: &str, next_case_start: usize) -> bool {
+    let prefix = source.get(..next_case_start).unwrap_or("");
+    // Walk backwards over whitespace; then accept either:
+    //   `// … falls through …`  (the rest of a line comment)
+    //   `/* … fallthrough … */` (a block comment immediately before)
+    let bytes = prefix.as_bytes();
+    let mut i = bytes.len();
+    // Skip trailing whitespace (including newlines).
+    while i > 0 && bytes[i - 1].is_ascii_whitespace() {
+        i -= 1;
+    }
+    if i == 0 {
+        return false;
+    }
+    // Look for `*/` closer of a block comment.
+    if i >= 2 && &bytes[i - 2..i] == b"*/" {
+        // Find matching `/*`.
+        if let Some(open) = prefix[..i - 2].rfind("/*") {
+            let body = &prefix[open + 2..i - 2];
+            return is_fallthrough_text(body);
+        }
+        return false;
+    }
+    // Otherwise look for a line comment on the previous line.
+    // Find the start of the current line at position i.
+    let line_start = prefix[..i].rfind('\n').map_or(0, |nl| nl + 1);
+    let line = &prefix[line_start..i];
+    if let Some(idx) = line.find("//") {
+        let body = &line[idx + 2..];
+        return is_fallthrough_text(body);
+    }
+    false
+}
+
+/// Returns `true` if `text` (a comment body) matches `falls?\s*through`
+/// case-insensitively.  Implemented without regex to keep parse.rs lean.
+fn is_fallthrough_text(text: &str) -> bool {
+    let mut lower = text.to_ascii_lowercase();
+    lower.retain(|c| !c.is_ascii_whitespace());
+    // Now we just need a substring match. Both `fallthrough` and `fallsthrough`
+    // collapse to `fallthrough` or `fallsthrough` after whitespace removal.
+    lower.contains("fallthrough") || lower.contains("fallsthrough")
 }
 
 /// Returns `true` if the statement (or any nested statement, excluding nested
@@ -1105,7 +1178,22 @@ fn walk_stmt(stmt: &Statement<'_>, out: &mut WalkCtx) {
                 span: oxc_span_to_core(s.span),
             });
             walk_expr(&s.discriminant, out);
-            for case in &s.cases {
+            // BUG002: detect fall-through cases. Walk every case except the last.
+            let total = s.cases.len();
+            for (i, case) in s.cases.iter().enumerate() {
+                if i + 1 < total
+                    && !case.consequent.is_empty()
+                    && !case_consequent_is_terminating(&case.consequent)
+                {
+                    // Carve-out: ESLint-style `// falls through` comment on
+                    // a line immediately before the next case label.
+                    let next_case_start = s.cases[i + 1].span.start as usize;
+                    if !has_fallthrough_carveout(&out.source_text, next_case_start) {
+                        out.case_fallthroughs.push(JsCaseFallthrough {
+                            span: oxc_span_to_core(case.span),
+                        });
+                    }
+                }
                 if let Some(test) = &case.test {
                     walk_expr(test, out);
                 }

@@ -73,6 +73,7 @@ const sidebars: SidebarsConfig = {
           label: 'Bug',
           items: [
             'rules/BUG001-assignment-in-condition',
+            'rules/BUG002-switch-fallthrough',
           ],
         },
         {
@@ -103,6 +104,7 @@ const sidebars: SidebarsConfig = {
             'rules/SEC013-bind-all-interfaces',
             'rules/SEC014-redos-regex',
             'rules/SEC015-log-injection',
+            'rules/SEC016-dangerous-function',
             'rules/SEC101-rust-unsafe',
           ],
         },
@@ -218,6 +220,7 @@ const sidebars: SidebarsConfig = {
             'rules/MAINT012-dead-store',
             'rules/MAINT013-empty-block',
             'rules/MAINT014-commented-out-code',
+            'rules/MAINT015-deprecated-function',
             'rules/MAINT016-unreachable-code',
             'rules/MAINT018-global-var-density',
           ],

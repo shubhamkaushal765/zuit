@@ -290,6 +290,24 @@ pub(crate) struct RustAst {
     /// statement.
     pub(crate) unreachable_stmts: Vec<Span>,
 
+    /// Spans of item declarations marked `#[deprecated]` for
+    /// `MAINT015-deprecated-function`.
+    ///
+    /// Populated by [`Extractor`] inside the item-level visit methods
+    /// (`visit_item_fn`, `visit_impl_item_fn`, `visit_trait_item_fn`,
+    /// `visit_item_struct`, `visit_item_enum`, `visit_item_const`,
+    /// `visit_item_static`, `visit_item_type`).  Each entry pairs a kind
+    /// label (`"fn"`, `"struct"`, …) with the span of the item's defining
+    /// keyword.
+    pub(crate) deprecated_items: Vec<RustDeprecatedItem>,
+
+    /// Call sites to inherently dangerous libc-family functions, for
+    /// `SEC016-dangerous-function`. Recognised names (matched on the
+    /// **last path segment** only): `gets`, `gets_s`, `strcpy`, `strcat`,
+    /// `sprintf`, `vsprintf`, `scanf`, `wcscpy`, `wcscat`. Captures both
+    /// `libc::gets(...)`, `::libc::gets(...)`, and bare `gets(...)`.
+    pub(crate) dangerous_calls: Vec<RustDangerousCall>,
+
     /// Spans of heap-allocating expressions that appear inside loop bodies
     /// (`for`, `while`, or `loop`), for `PERF010-allocation-in-loop`.
     ///
@@ -314,6 +332,30 @@ pub(crate) struct RustDeadStore {
     /// The variable name that is written but never read.
     pub(crate) name: String,
     /// Byte span of the `let` binding.
+    pub(crate) span: Span,
+}
+
+/// An item marked `#[deprecated]` for `MAINT015-deprecated-function` (Rust).
+#[derive(Debug, Clone)]
+pub(crate) struct RustDeprecatedItem {
+    /// The item identifier (e.g. `"old_fn"`).
+    pub(crate) name: String,
+    /// Short kind label: `"fn"`, `"struct"`, `"enum"`, `"const"`, `"static"`,
+    /// `"type"`, `"method"`, `"trait method"`.
+    pub(crate) kind: &'static str,
+    /// Byte span anchored at the item's defining keyword.
+    pub(crate) span: Span,
+}
+
+/// A call site to a libc-family inherently dangerous function, extracted for
+/// `SEC016-dangerous-function` (CWE-242).  Matched by the **last path segment**
+/// only so both `libc::gets(...)` and `::libc::gets(...)` and bare `gets(...)`
+/// flag the same way.
+#[derive(Debug, Clone)]
+pub(crate) struct RustDangerousCall {
+    /// The function name (e.g. `"gets"`, `"strcpy"`).
+    pub(crate) name: &'static str,
+    /// Byte span of the callee path.
     pub(crate) span: Span,
 }
 
@@ -379,6 +421,16 @@ const RUST_BIND_CALLEE_NAMES: &[&str] = &[
     "bind",
     "bind_addr",
     "new", // Hyper Server::new takes the address
+];
+
+/// Inherently dangerous libc-family function names for
+/// `SEC016-dangerous-function` (CWE-242). Matched against the **last** path
+/// segment, so both `libc::gets(...)` and bare `gets(...)` are detected.
+///
+/// These functions are unsafe by construction (unbounded copies, format-string
+/// reads, no length checks); CWE-242 advises replacing all uses.
+const RUST_DANGEROUS_CALLEE_NAMES: &[&str] = &[
+    "gets", "gets_s", "strcpy", "strcat", "sprintf", "vsprintf", "scanf", "wcscpy", "wcscat",
 ];
 
 /// Returns `true` when `raw` is a bind-all-interfaces address:
@@ -634,6 +686,12 @@ struct Extractor<'src> {
     /// Current loop nesting depth for `PERF010`.
     in_loop_depth: u32,
 
+    /// Items marked `#[deprecated]` for `MAINT015-deprecated-function`.
+    deprecated_items: Vec<RustDeprecatedItem>,
+
+    /// Inherently dangerous libc-family call sites for `SEC016`.
+    dangerous_calls: Vec<RustDangerousCall>,
+
     source: &'src SourceFile,
     /// `true` while inside an `extern "…"` block.
     in_foreign_mod: bool,
@@ -670,6 +728,8 @@ impl<'src> Extractor<'src> {
             unreachable_stmts: Vec::new(),
             allocs_in_loop: Vec::new(),
             in_loop_depth: 0,
+            deprecated_items: Vec::new(),
+            dangerous_calls: Vec::new(),
             source,
             in_foreign_mod: false,
             pending_pub_struct_raw_ptr: Vec::new(),
@@ -681,6 +741,18 @@ impl<'src> Extractor<'src> {
     fn push_unsafe_item(&mut self, raw: proc_macro2::Span, label: &'static str) {
         let span = proc_span_to_byte_span(raw, self.source);
         self.items.push(UnsafeItem { span, label });
+    }
+
+    /// Returns `true` if `attrs` contains a `#[deprecated]` attribute,
+    /// including the `#[deprecated(...)]` parameterised forms.
+    fn has_deprecated_attr(attrs: &[syn::Attribute]) -> bool {
+        attrs.iter().any(|attr| attr.path().is_ident("deprecated"))
+    }
+
+    fn record_deprecated(&mut self, raw: proc_macro2::Span, name: String, kind: &'static str) {
+        let span = proc_span_to_byte_span(raw, self.source);
+        self.deprecated_items
+            .push(RustDeprecatedItem { name, kind, span });
     }
 
     fn is_pub(vis: &syn::Visibility) -> bool {
@@ -942,6 +1014,12 @@ impl<'ast> Visit<'ast> for Extractor<'_> {
     }
 
     fn visit_item_fn(&mut self, node: &'ast syn::ItemFn) {
+        // MAINT015: function marked #[deprecated]?
+        if Self::has_deprecated_attr(&node.attrs) {
+            let name = node.sig.ident.to_string();
+            self.record_deprecated(node.sig.fn_token.span, name, "fn");
+        }
+
         if node.sig.unsafety.is_some() {
             self.push_unsafe_item(node.sig.fn_token.span, "fn");
         }
@@ -1000,6 +1078,12 @@ impl<'ast> Visit<'ast> for Extractor<'_> {
     }
 
     fn visit_impl_item_fn(&mut self, node: &'ast syn::ImplItemFn) {
+        // MAINT015: impl method marked #[deprecated]?
+        if Self::has_deprecated_attr(&node.attrs) {
+            let name = node.sig.ident.to_string();
+            self.record_deprecated(node.sig.fn_token.span, name, "method");
+        }
+
         if node.sig.unsafety.is_some() {
             self.push_unsafe_item(node.sig.fn_token.span, "fn");
         }
@@ -1036,6 +1120,12 @@ impl<'ast> Visit<'ast> for Extractor<'_> {
     }
 
     fn visit_trait_item_fn(&mut self, node: &'ast syn::TraitItemFn) {
+        // MAINT015: trait method marked #[deprecated]?
+        if Self::has_deprecated_attr(&node.attrs) {
+            let name = node.sig.ident.to_string();
+            self.record_deprecated(node.sig.fn_token.span, name, "trait method");
+        }
+
         if node.sig.unsafety.is_some() {
             self.push_unsafe_item(node.sig.fn_token.span, "fn");
         }
@@ -1223,6 +1313,11 @@ impl<'ast> Visit<'ast> for Extractor<'_> {
     }
 
     fn visit_item_const(&mut self, node: &'ast syn::ItemConst) {
+        // MAINT015: const marked #[deprecated]?
+        if Self::has_deprecated_attr(&node.attrs) {
+            let n = node.ident.to_string();
+            self.record_deprecated(node.const_token.span, n, "const");
+        }
         let name = node.ident.to_string();
         if let Some(lit) = expr_to_rust_literal(&node.expr) {
             let span = proc_span_to_byte_span(node.const_token.span, self.source);
@@ -1236,6 +1331,12 @@ impl<'ast> Visit<'ast> for Extractor<'_> {
     }
 
     fn visit_item_static(&mut self, node: &'ast syn::ItemStatic) {
+        // MAINT015: static marked #[deprecated]?
+        if Self::has_deprecated_attr(&node.attrs) {
+            let n = node.ident.to_string();
+            self.record_deprecated(node.static_token.span, n, "static");
+        }
+
         let name = node.ident.to_string();
         if let Some(lit) = expr_to_rust_literal(&node.expr) {
             let span = proc_span_to_byte_span(node.static_token.span, self.source);
@@ -1256,12 +1357,35 @@ impl<'ast> Visit<'ast> for Extractor<'_> {
     }
 
     fn visit_item_struct(&mut self, node: &'ast syn::ItemStruct) {
+        // MAINT015: struct marked #[deprecated]?
+        if Self::has_deprecated_attr(&node.attrs) {
+            let name = node.ident.to_string();
+            self.record_deprecated(node.struct_token.span, name, "struct");
+        }
         // ECO003: pub struct with raw pointer field.
         if Self::is_pub(&node.vis) && Self::struct_has_raw_ptr_field(&node.fields) {
             let span = proc_span_to_byte_span(node.struct_token.span, self.source);
             self.pending_pub_struct_raw_ptr.push(span);
         }
         syn::visit::visit_item_struct(self, node);
+    }
+
+    fn visit_item_enum(&mut self, node: &'ast syn::ItemEnum) {
+        // MAINT015: enum marked #[deprecated]?
+        if Self::has_deprecated_attr(&node.attrs) {
+            let name = node.ident.to_string();
+            self.record_deprecated(node.enum_token.span, name, "enum");
+        }
+        syn::visit::visit_item_enum(self, node);
+    }
+
+    fn visit_item_type(&mut self, node: &'ast syn::ItemType) {
+        // MAINT015: type alias marked #[deprecated]?
+        if Self::has_deprecated_attr(&node.attrs) {
+            let name = node.ident.to_string();
+            self.record_deprecated(node.type_token.span, name, "type");
+        }
+        syn::visit::visit_item_type(self, node);
     }
 
     // MAINT009: detect `match` expressions without a wildcard arm.
@@ -1335,6 +1459,26 @@ impl<'ast> Visit<'ast> for Extractor<'_> {
         {
             let span = proc_span_to_byte_span(ep.path.span(), self.source);
             self.transmute_calls.push(span);
+        }
+
+        // SEC016: detect inherently dangerous libc-family calls.
+        if let syn::Expr::Path(ep) = &*node.func {
+            let last_seg = ep
+                .path
+                .segments
+                .last()
+                .map(|s| s.ident.to_string())
+                .unwrap_or_default();
+            if let Some(&matched) = RUST_DANGEROUS_CALLEE_NAMES
+                .iter()
+                .find(|name| **name == last_seg.as_str())
+            {
+                let span = proc_span_to_byte_span(node.func.span(), self.source);
+                self.dangerous_calls.push(RustDangerousCall {
+                    name: matched,
+                    span,
+                });
+            }
         }
 
         // SEC013: detect bind-all-interfaces call sites.
@@ -1700,6 +1844,8 @@ pub(crate) fn parse(source: Arc<SourceFile>) -> Result<ParsedFile, ParseError> {
             has_macro_body: extractor.has_macro_body,
             pub_static_muts: extractor.pub_static_muts,
             unreachable_stmts: extractor.unreachable_stmts,
+            deprecated_items: extractor.deprecated_items,
+            dangerous_calls: extractor.dangerous_calls,
             allocs_in_loop: extractor.allocs_in_loop,
         })
     };

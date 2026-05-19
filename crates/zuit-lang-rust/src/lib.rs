@@ -108,6 +108,12 @@ pub fn register(registry: &mut Registry) {
     registry.add_analyzer(Box::new(
         analyzers::unreachable_code::UnreachableCodeAnalyzer,
     ));
+    registry.add_analyzer(Box::new(
+        analyzers::deprecated_function::DeprecatedFunctionAnalyzer,
+    ));
+    registry.add_analyzer(Box::new(
+        analyzers::dangerous_function::DangerousFunctionAnalyzer,
+    ));
 
     // SOUND family
     registry.add_analyzer(Box::new(
@@ -242,6 +248,6 @@ mod tests {
         // 1 (SEC101) + 1 (MAINT013) + 1 (MAINT009) + 1 (MAINT010) + 1 (MAINT012) + 6 SOUND
         // + 10 PKG + 5 HEALTH + 4 CHAIN + 3 PERF + 1 PERF010 + 4 ECO + 6 CI + 4 external
         // + 1 (SEC015) + 1 (MAINT018) + 1 (MAINT016) = 54 total.
-        assert_eq!(registry.analyzer_count(), 54);
+        assert_eq!(registry.analyzer_count(), 56);
     }
 }

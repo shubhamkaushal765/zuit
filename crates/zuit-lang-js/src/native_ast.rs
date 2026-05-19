@@ -140,6 +140,22 @@ pub struct JsSwitchSite {
     pub span: Span,
 }
 
+/// A single `case` clause that silently falls through to the next clause,
+/// extracted for `BUG002-switch-fallthrough` (CWE-484).
+///
+/// Populated by the walker for every `case` (or `default:`) clause that:
+/// 1. Is **not** the last clause in its `switch`.
+/// 2. Has at least one statement in its consequent.
+/// 3. Does **not** end with a terminating statement (`break`, `return`,
+///    `throw`, `continue`).
+/// 4. Has **no** `/falls?\s*through/i` comment on the preceding source line
+///    (`ESLint` `no-fallthrough` carve-out).
+#[derive(Debug, Clone)]
+pub struct JsCaseFallthrough {
+    /// Byte span of the `case` (or `default:`) clause that falls through.
+    pub span: Span,
+}
+
 /// Pre-extracted data from a JS/TS source file stored in the [`zuit_core::ParsedFile`]
 /// native slot.
 ///
@@ -245,6 +261,10 @@ pub struct JsAst {
     /// record the span of the first following statement.  One entry per block —
     /// never one per dead statement.
     pub unreachable_stmts: Vec<Span>,
+
+    /// `case` clauses that silently fall through to the next clause, for
+    /// `BUG002-switch-fallthrough`.  See [`JsCaseFallthrough`].
+    pub case_fallthroughs: Vec<JsCaseFallthrough>,
 }
 
 /// An assignment-in-condition site extracted for `BUG001-assignment-in-condition`.

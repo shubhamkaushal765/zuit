@@ -120,6 +120,12 @@ pub fn register(registry: &mut Registry) {
     registry.add_analyzer(Box::new(
         analyzers::unreachable_code::JsUnreachableCodeAnalyzer,
     ));
+    registry.add_analyzer(Box::new(
+        analyzers::switch_fallthrough::JsSwitchFallthroughAnalyzer,
+    ));
+    registry.add_analyzer(Box::new(
+        analyzers::deprecated_function::JsDeprecatedFunctionAnalyzer,
+    ));
     registry.add_analyzer(Box::new(analyzers::pkg::Pkg001InstallScriptAnalyzer));
     registry.add_analyzer(Box::new(analyzers::pkg::Pkg002MissingTypesAnalyzer));
     registry.add_analyzer(Box::new(analyzers::pkg::Pkg003DualPackageHazardAnalyzer));
@@ -200,7 +206,7 @@ mod tests {
     fn register_adds_analyzer() {
         let mut registry = Registry::new();
         register(&mut registry);
-        assert_eq!(registry.analyzer_count(), 32);
+        assert_eq!(registry.analyzer_count(), 34);
     }
 
     #[test]
