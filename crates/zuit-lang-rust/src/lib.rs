@@ -70,6 +70,7 @@ impl Language for RustLanguage {
 /// - `ECO001`–`ECO004` — ecosystem compatibility rules
 /// - `CI001`–`CI006` — CI/CD & release hygiene rules
 /// - `MAINT018-global-var-density` — per-file `pub static mut` count threshold
+/// - `MAINT019-unconditional-branch` — long `match` / `if-else-if` chains
 /// - `CargoAuditAnalyzer` — `cargo audit` external-tool adapter
 /// - `CargoClippyAnalyzer` — `cargo clippy` external-tool adapter
 /// - `CargoGeigerAnalyzer` — `cargo geiger` external-tool adapter
@@ -104,6 +105,9 @@ pub fn register(registry: &mut Registry) {
     registry.add_analyzer(Box::new(analyzers::dead_store::RustDeadStoreAnalyzer));
     registry.add_analyzer(Box::new(
         analyzers::global_var_density::GlobalVarDensityAnalyzer,
+    ));
+    registry.add_analyzer(Box::new(
+        analyzers::unconditional_branch::UnconditionalBranchAnalyzer,
     ));
     registry.add_analyzer(Box::new(
         analyzers::unreachable_code::UnreachableCodeAnalyzer,
@@ -247,7 +251,7 @@ mod tests {
         assert_eq!(registry.language_count(), 1);
         // 1 (SEC101) + 1 (MAINT013) + 1 (MAINT009) + 1 (MAINT010) + 1 (MAINT012) + 6 SOUND
         // + 10 PKG + 5 HEALTH + 4 CHAIN + 3 PERF + 1 PERF010 + 4 ECO + 6 CI + 4 external
-        // + 1 (SEC015) + 1 (MAINT018) + 1 (MAINT016) = 54 total.
-        assert_eq!(registry.analyzer_count(), 56);
+        // + 1 (SEC015) + 1 (MAINT018) + 1 (MAINT019) + 1 (MAINT016) = 55 total.
+        assert_eq!(registry.analyzer_count(), 57);
     }
 }

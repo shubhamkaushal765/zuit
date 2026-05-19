@@ -12,6 +12,7 @@
 //! - [`empty_block`]: `MAINT013-empty-block` — flags empty `if`/`for`/`while` blocks.
 //! - [`global_var_density`]: `MAINT018-global-var-density` — flags files with too
 //!   many `pub static mut` globals.
+//! - [`unconditional_branch`]: `MAINT019-unconditional-branch` — flags overly long `match` arms or `if`/`else if` chains.
 //! - [`external`]: external-tool adapters (`cargo audit`, `cargo clippy`,
 //!   `cargo geiger`, `cargo deny`).
 
@@ -34,5 +35,6 @@ pub mod missing_default_case;
 pub mod perf;
 pub mod pkg;
 pub mod sound;
+pub mod unconditional_branch;
 pub mod unreachable_code;
 pub mod unsafe_block;

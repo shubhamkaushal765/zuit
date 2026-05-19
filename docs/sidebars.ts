@@ -224,6 +224,7 @@ const sidebars: SidebarsConfig = {
             'rules/MAINT015-deprecated-function',
             'rules/MAINT016-unreachable-code',
             'rules/MAINT018-global-var-density',
+            'rules/MAINT019-unconditional-branch',
           ],
         },
         {

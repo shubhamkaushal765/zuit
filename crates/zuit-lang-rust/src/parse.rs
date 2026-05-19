@@ -130,6 +130,24 @@ pub(crate) struct RustMatchSite {
     pub(crate) span: Span,
 }
 
+/// Kind of dispatch construct flagged by `MAINT019-unconditional-branch`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum LongDispatchKind {
+    /// A `match` expression. Count includes a wildcard arm if present.
+    Match,
+    /// A top-of-chain `if/else if/.../else` expression. Count is the number
+    /// of `if`/`else if` rungs (trailing bare `else` does not increment).
+    IfChain,
+}
+
+/// A long-dispatch site extracted for `MAINT019-unconditional-branch`.
+#[derive(Debug, Clone)]
+pub(crate) struct RustLongDispatchSite {
+    pub(crate) kind: LongDispatchKind,
+    pub(crate) count: u32,
+    pub(crate) span: Span,
+}
+
 /// Kind of debug-code macro call extracted for `MAINT011-active-debug-code`.
 ///
 /// Defined here (not in `zuit-core`) per the per-rule extractor architecture
@@ -289,6 +307,11 @@ pub(crate) struct RustAst {
     /// that first dead statement.  One entry per block — never one per dead
     /// statement.
     pub(crate) unreachable_stmts: Vec<Span>,
+
+    /// Long-dispatch sites (`match` or `if`/`else if` chains) extracted for
+    /// `MAINT019-unconditional-branch`.  Each entry records the construct
+    /// kind, the branch count, and the byte span of the leading keyword.
+    pub(crate) long_dispatch_sites: Vec<RustLongDispatchSite>,
 
     /// Spans of item declarations marked `#[deprecated]` for
     /// `MAINT015-deprecated-function`.
@@ -516,6 +539,24 @@ fn is_transmute_path(path: &syn::Path) -> bool {
         .is_some_and(|seg| seg.ident == "transmute")
 }
 
+/// Count the total number of branches in an `if/else if/.../else` chain.
+/// Each `if` and `else if` rung adds 1.  A trailing `else { }` is NOT
+/// counted (fallthrough, not a branch).  `if let` rungs count like `if`.
+fn count_if_chain(top: &syn::ExprIf) -> u32 {
+    let mut count: u32 = 1;
+    let mut cur = top;
+    while let Some((_, else_expr)) = &cur.else_branch {
+        match &**else_expr {
+            syn::Expr::If(inner) => {
+                count = count.saturating_add(1);
+                cur = inner;
+            }
+            _ => break,
+        }
+    }
+    count
+}
+
 // ── Log-macro body parser (regex-style) for SEC015 ───────────────────────────
 
 /// Log macro names for `SEC015-log-injection` detection.
@@ -647,6 +688,11 @@ fn collect_sig_params(sig: &syn::Signature) -> Vec<String> {
 use syn::spanned::Spanned;
 use syn::visit::Visit;
 
+#[allow(
+    clippy::struct_excessive_bools,
+    reason = "Per-rule traversal flags collected on a single visitor; \
+              splitting into a state machine would obscure the visitor."
+)]
 struct Extractor<'src> {
     items: Vec<UnsafeItem>,
     unsafe_blocks_without_safety: Vec<Span>,
@@ -679,6 +725,15 @@ struct Extractor<'src> {
 
     /// First-dead-statement spans for `MAINT016-unreachable-code`.
     unreachable_stmts: Vec<Span>,
+
+    /// Long-dispatch sites (`match` / `if-else-if` chains) for
+    /// `MAINT019-unconditional-branch`.
+    long_dispatch_sites: Vec<RustLongDispatchSite>,
+
+    /// `true` while we are descending into an `else if` continuation of an
+    /// outer `if` chain.  Used by `visit_expr_if` to record only top-of-chain
+    /// sites for MAINT019 (avoids one finding per rung).
+    in_else_if_continuation: bool,
 
     /// Heap-allocating expression spans inside loop bodies for `PERF010`.
     allocs_in_loop: Vec<Span>,
@@ -726,6 +781,8 @@ impl<'src> Extractor<'src> {
             has_macro_body: false,
             pub_static_muts: Vec::new(),
             unreachable_stmts: Vec::new(),
+            long_dispatch_sites: Vec::new(),
+            in_else_if_continuation: false,
             allocs_in_loop: Vec::new(),
             in_loop_depth: 0,
             deprecated_items: Vec::new(),
@@ -1196,11 +1253,45 @@ impl<'ast> Visit<'ast> for Extractor<'_> {
     // Function bodies are excluded (often intentional stubs).
 
     fn visit_expr_if(&mut self, node: &'ast syn::ExprIf) {
+        // MAINT013: empty if-block detection (existing behaviour).
         if node.then_branch.stmts.is_empty() {
             let span = proc_span_to_byte_span(node.if_token.span, self.source);
             self.empty_blocks.push(span);
         }
-        syn::visit::visit_expr_if(self, node);
+
+        // MAINT019: count chain length only at the top of an `if/else if` chain.
+        if !self.in_else_if_continuation {
+            let count = count_if_chain(node);
+            if count >= 2 {
+                let span = proc_span_to_byte_span(node.if_token.span, self.source);
+                self.long_dispatch_sites.push(RustLongDispatchSite {
+                    kind: LongDispatchKind::IfChain,
+                    count,
+                    span,
+                });
+            }
+        }
+
+        // Manual descent so we can flag the `else_branch = Expr::If` case as a
+        // continuation while still visiting `cond` / `then_branch` normally
+        // (those are NOT continuations — a chain inside `then_branch` should be
+        // its own top-of-chain).
+        //
+        // NOTE: this replaces `syn::visit::visit_expr_if(self, node);`.  Any
+        // future maintainer hooking `visit_expr_if` to descend must remember
+        // this manual recursion.
+        let prev = self.in_else_if_continuation;
+        self.in_else_if_continuation = false;
+        for attr in &node.attrs {
+            self.visit_attribute(attr);
+        }
+        self.visit_expr(&node.cond);
+        self.visit_block(&node.then_branch);
+        if let Some((_, else_expr)) = &node.else_branch {
+            self.in_else_if_continuation = matches!(&**else_expr, syn::Expr::If(_));
+            self.visit_expr(else_expr);
+        }
+        self.in_else_if_continuation = prev;
     }
 
     fn visit_expr_for_loop(&mut self, node: &'ast syn::ExprForLoop) {
@@ -1419,6 +1510,16 @@ impl<'ast> Visit<'ast> for Extractor<'_> {
             has_wildcard,
             span,
         });
+
+        // MAINT019: record the match for long-dispatch checking.
+        let count = u32::try_from(node.arms.len()).unwrap_or(u32::MAX);
+        if count > 0 {
+            self.long_dispatch_sites.push(RustLongDispatchSite {
+                kind: LongDispatchKind::Match,
+                count,
+                span,
+            });
+        }
 
         syn::visit::visit_expr_match(self, node);
     }
@@ -1844,6 +1945,7 @@ pub(crate) fn parse(source: Arc<SourceFile>) -> Result<ParsedFile, ParseError> {
             has_macro_body: extractor.has_macro_body,
             pub_static_muts: extractor.pub_static_muts,
             unreachable_stmts: extractor.unreachable_stmts,
+            long_dispatch_sites: extractor.long_dispatch_sites,
             deprecated_items: extractor.deprecated_items,
             dangerous_calls: extractor.dangerous_calls,
             allocs_in_loop: extractor.allocs_in_loop,
