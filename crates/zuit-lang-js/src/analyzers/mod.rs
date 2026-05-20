@@ -6,6 +6,7 @@
 pub mod active_debug_code;
 pub mod assignment_in_condition;
 pub mod bind_all_interfaces;
+pub mod block_delimitation;
 pub mod chain;
 pub mod dead_store;
 pub mod deprecated_function;

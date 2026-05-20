@@ -225,6 +225,7 @@ const sidebars: SidebarsConfig = {
             'rules/MAINT016-unreachable-code',
             'rules/MAINT018-global-var-density',
             'rules/MAINT019-unconditional-branch',
+            'rules/STYLE001-block-delimitation',
           ],
         },
         {

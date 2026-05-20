@@ -18,9 +18,9 @@ use oxc_span::SourceType;
 use zuit_core::{ByteOffset, LanguageId, ParseError, ParsedFile, SourceFile, Span};
 
 use crate::native_ast::{
-    DomSinkKind, JsAssignInCondSite, JsAssignmentSite, JsAst, JsBindCallSite, JsCallSite, JsCallee,
-    JsCaseFallthrough, JsDeadStore, JsDebugKind, JsDomSink, JsImport, JsLiteralValue,
-    JsLogCallSite, JsOpPrecedenceKind, JsOpPrecedenceSite, JsSwitchSite,
+    DomSinkKind, JsAsiHazardKind, JsAsiHazardSite, JsAssignInCondSite, JsAssignmentSite, JsAst,
+    JsBindCallSite, JsCallSite, JsCallee, JsCaseFallthrough, JsDeadStore, JsDebugKind, JsDomSink,
+    JsImport, JsLiteralValue, JsLogCallSite, JsOpPrecedenceKind, JsOpPrecedenceSite, JsSwitchSite,
 };
 
 /// Parses `source` as JavaScript or TypeScript and returns a populated
@@ -118,6 +118,8 @@ struct WalkCtx {
     case_fallthroughs: Vec<JsCaseFallthrough>,
     /// Operator-precedence trap sites for `BUG004-operator-precedence`.
     op_precedence_sites: Vec<JsOpPrecedenceSite>,
+    /// ASI hazard sites for `STYLE001-block-delimitation`.
+    asi_hazards: Vec<JsAsiHazardSite>,
     /// Snapshot of the full source text. Needed by the BUG002 fallthrough
     /// detector to inspect the comment immediately before a `case` clause.
     source_text: Arc<str>,
@@ -144,6 +146,7 @@ impl WalkCtx {
             unreachable_stmts: Vec::new(),
             case_fallthroughs: Vec::new(),
             op_precedence_sites: Vec::new(),
+            asi_hazards: Vec::new(),
             source_text,
         }
     }
@@ -174,6 +177,8 @@ fn extract_call_sites(program: &Program<'_>, source_text: Arc<str>) -> JsAst {
 
     // Second pass: walk all statements for call sites, DOM sinks, and
     // top-level require() calls.
+    // STYLE001: detect ASI hazards at module/program top level.
+    check_asi_hazards(&program.body, &ctx.source_text, &mut ctx.asi_hazards);
     for stmt in &program.body {
         walk_stmt(stmt, &mut ctx);
     }
@@ -194,6 +199,7 @@ fn extract_call_sites(program: &Program<'_>, source_text: Arc<str>) -> JsAst {
         unreachable_stmts: ctx.unreachable_stmts,
         case_fallthroughs: ctx.case_fallthroughs,
         op_precedence_sites: ctx.op_precedence_sites,
+        asi_hazards: ctx.asi_hazards,
     }
 }
 
@@ -467,6 +473,113 @@ fn is_js_terminating(stmt: &Statement<'_>) -> bool {
             | Statement::BreakStatement(_)
             | Statement::ContinueStatement(_)
     )
+}
+
+// ── ASI-hazard helpers for STYLE001 ─────────────────────────────────────────
+
+/// Counts the number of `\n` bytes between byte offsets `start` and `end` in
+/// `src`. Defensive bounds: clamps to `src.len()` so an off-by-one in the
+/// arena spans never panics.
+#[allow(clippy::naive_bytecount)]
+fn newlines_between(src: &str, start: u32, end: u32) -> usize {
+    let bytes = src.as_bytes();
+    let s = (start as usize).min(bytes.len());
+    let e = (end as usize).min(bytes.len());
+    if s >= e {
+        return 0;
+    }
+    bytes[s..e].iter().filter(|&&b| b == b'\n').count()
+}
+
+/// Scans a flat slice of statements for adjacent pairs that form ASI hazards
+/// and pushes a [`JsAsiHazardSite`] onto `out` for each one found.
+///
+/// The three patterns detected are:
+/// 1. `return\nexpr;`  — `ReturnStatement(None)` + `ExpressionStatement`
+/// 2. `continue\nident;` — `ContinueStatement{label:None}` + `ExpressionStatement(Identifier)`
+/// 3. `break\nident;`   — `BreakStatement{label:None}` + `ExpressionStatement(Identifier)`
+///
+/// Invariant: exactly **one** `\n` must exist between `prev.span.end` and
+/// `next.span.start` (no blank line, no same-line follow-up).
+fn check_asi_hazards(stmts: &[Statement<'_>], src: &str, out: &mut Vec<JsAsiHazardSite>) {
+    use oxc_span::GetSpan;
+    for w in stmts.windows(2) {
+        let prev = &w[0];
+        let next = &w[1];
+        let prev_end = prev.span().end;
+        let next_start = next.span().start;
+        if newlines_between(src, prev_end, next_start) != 1 {
+            continue;
+        }
+        let prev_end = prev.span().end;
+        let prev_span = oxc_span_to_core(prev.span());
+        match (prev, next) {
+            (Statement::ReturnStatement(r), Statement::ExpressionStatement(_))
+                if r.argument.is_none() && !has_trailing_semicolon(src, prev_end) =>
+            {
+                out.push(JsAsiHazardSite {
+                    span: prev_span,
+                    kind: JsAsiHazardKind::ReturnExpr,
+                });
+            }
+            (Statement::ContinueStatement(c), Statement::ExpressionStatement(es))
+                if c.label.is_none()
+                    && matches!(&es.expression, Expression::Identifier(_))
+                    && !has_trailing_semicolon(src, prev_end) =>
+            {
+                out.push(JsAsiHazardSite {
+                    span: prev_span,
+                    kind: JsAsiHazardKind::ContinueLabel,
+                });
+            }
+            (Statement::BreakStatement(b), Statement::ExpressionStatement(es))
+                if b.label.is_none()
+                    && matches!(&es.expression, Expression::Identifier(_))
+                    && !has_trailing_semicolon(src, prev_end) =>
+            {
+                out.push(JsAsiHazardSite {
+                    span: prev_span,
+                    kind: JsAsiHazardKind::BreakLabel,
+                });
+            }
+            _ => {}
+        }
+    }
+}
+
+/// Returns `true` when the source text immediately at or just before `span_end`
+/// carries an explicit `;` (possibly with only horizontal whitespace between
+/// the statement keyword and the semicolon, or between `span_end` and the `;`
+/// when the parser's span stops at the keyword).
+///
+/// Two cases handled:
+/// - **Case A** (span includes `;`): scan backward from `span_end` skipping
+///   space/tab; if we hit `;` the user wrote it explicitly.
+/// - **Case B** (span stops at keyword): scan forward from `span_end` skipping
+///   space/tab; if the next non-whitespace byte is `;` it is explicit.
+///
+/// Never crosses a newline — only horizontal whitespace is skipped.
+fn has_trailing_semicolon(src: &str, span_end: u32) -> bool {
+    let bytes = src.as_bytes();
+    // Case A: backward scan from span_end.
+    let mut back = span_end as usize;
+    while back > 0 {
+        match bytes[back - 1] {
+            b' ' | b'\t' => back -= 1,
+            b';' => return true,
+            _ => break,
+        }
+    }
+    // Case B: forward scan from span_end.
+    let mut fwd = span_end as usize;
+    while fwd < bytes.len() {
+        match bytes[fwd] {
+            b' ' | b'\t' => fwd += 1,
+            b';' => return true,
+            _ => return false,
+        }
+    }
+    false
 }
 
 /// Scans a flat slice of statements for the first terminator and, if a
@@ -1291,6 +1404,8 @@ fn walk_stmt(stmt: &Statement<'_>, out: &mut WalkCtx) {
         Statement::BlockStatement(b) => {
             // MAINT016: detect unreachable statements in this block.
             check_js_block_for_unreachable(&b.body, &mut out.unreachable_stmts);
+            // STYLE001: detect ASI hazards in this block.
+            check_asi_hazards(&b.body, &out.source_text, &mut out.asi_hazards);
             for s in &b.body {
                 walk_stmt(s, out);
             }
@@ -1409,12 +1524,16 @@ fn walk_stmt(stmt: &Statement<'_>, out: &mut WalkCtx) {
                 if let Some(test) = &case.test {
                     walk_expr(test, out);
                 }
+                // STYLE001: detect ASI hazards in switch-case consequent slices.
+                check_asi_hazards(&case.consequent, &out.source_text, &mut out.asi_hazards);
                 for stmt in &case.consequent {
                     walk_stmt(stmt, out);
                 }
             }
         }
         Statement::TryStatement(s) => {
+            // STYLE001: detect ASI hazards in the try block body.
+            check_asi_hazards(&s.block.body, &out.source_text, &mut out.asi_hazards);
             for st in &s.block.body {
                 walk_stmt(st, out);
             }
@@ -1433,11 +1552,15 @@ fn walk_stmt(stmt: &Statement<'_>, out: &mut WalkCtx) {
                 if handler.body.body.is_empty() && !is_intentional_swallow {
                     out.empty_blocks.push(oxc_span_to_core(handler.span));
                 }
+                // STYLE001: detect ASI hazards in the catch handler body.
+                check_asi_hazards(&handler.body.body, &out.source_text, &mut out.asi_hazards);
                 for st in &handler.body.body {
                     walk_stmt(st, out);
                 }
             }
             if let Some(fin) = &s.finalizer {
+                // STYLE001: detect ASI hazards in the finally body.
+                check_asi_hazards(&fin.body, &out.source_text, &mut out.asi_hazards);
                 for st in &fin.body {
                     walk_stmt(st, out);
                 }
@@ -1457,6 +1580,8 @@ fn walk_stmt(stmt: &Statement<'_>, out: &mut WalkCtx) {
                 out.dead_stores.extend(dead);
                 // MAINT016: detect unreachable statements in this function body.
                 check_js_block_for_unreachable(&body.statements, &mut out.unreachable_stmts);
+                // STYLE001: detect ASI hazards in this function body.
+                check_asi_hazards(&body.statements, &out.source_text, &mut out.asi_hazards);
                 for s in &body.statements {
                     walk_stmt(s, out);
                 }
@@ -1479,6 +1604,8 @@ fn walk_stmt(stmt: &Statement<'_>, out: &mut WalkCtx) {
                     out.dead_stores.extend(dead);
                     // MAINT016: detect unreachable statements in this method body.
                     check_js_block_for_unreachable(&body.statements, &mut out.unreachable_stmts);
+                    // STYLE001: detect ASI hazards in this method body.
+                    check_asi_hazards(&body.statements, &out.source_text, &mut out.asi_hazards);
                     for s in &body.statements {
                         walk_stmt(s, out);
                     }
@@ -1518,6 +1645,8 @@ fn walk_decl(decl: &oxc_ast::ast::Declaration<'_>, out: &mut WalkCtx) {
                 out.dead_stores.extend(dead);
                 // MAINT016: detect unreachable statements in this exported function body.
                 check_js_block_for_unreachable(&body.statements, &mut out.unreachable_stmts);
+                // STYLE001: detect ASI hazards in this exported function body.
+                check_asi_hazards(&body.statements, &out.source_text, &mut out.asi_hazards);
                 for s in &body.statements {
                     walk_stmt(s, out);
                 }
@@ -1536,6 +1665,8 @@ fn walk_decl(decl: &oxc_ast::ast::Declaration<'_>, out: &mut WalkCtx) {
                     out.dead_stores.extend(dead);
                     // MAINT016: detect unreachable statements in this exported class method.
                     check_js_block_for_unreachable(&body.statements, &mut out.unreachable_stmts);
+                    // STYLE001: detect ASI hazards in this exported class method.
+                    check_asi_hazards(&body.statements, &out.source_text, &mut out.asi_hazards);
                     for s in &body.statements {
                         walk_stmt(s, out);
                     }
@@ -1692,6 +1823,12 @@ fn walk_expr(expr: &Expression<'_>, out: &mut WalkCtx) {
             // MAINT012: extract dead stores for this arrow function scope.
             let dead = extract_dead_stores_from_fn_body(&arrow.body.statements);
             out.dead_stores.extend(dead);
+            // STYLE001: detect ASI hazards in this arrow function body.
+            check_asi_hazards(
+                &arrow.body.statements,
+                &out.source_text,
+                &mut out.asi_hazards,
+            );
             for stmt in &arrow.body.statements {
                 walk_stmt(stmt, out);
             }
@@ -1707,6 +1844,8 @@ fn walk_expr(expr: &Expression<'_>, out: &mut WalkCtx) {
                 // MAINT012: extract dead stores for this function expression scope.
                 let dead = extract_dead_stores_from_fn_body(&body.statements);
                 out.dead_stores.extend(dead);
+                // STYLE001: detect ASI hazards in this function expression body.
+                check_asi_hazards(&body.statements, &out.source_text, &mut out.asi_hazards);
                 for s in &body.statements {
                     walk_stmt(s, out);
                 }
@@ -1726,6 +1865,8 @@ fn walk_expr(expr: &Expression<'_>, out: &mut WalkCtx) {
                     // MAINT012: extract dead stores for this class-expression method.
                     let dead = extract_dead_stores_from_fn_body(&body.statements);
                     out.dead_stores.extend(dead);
+                    // STYLE001: detect ASI hazards in this class-expression method.
+                    check_asi_hazards(&body.statements, &out.source_text, &mut out.asi_hazards);
                     for s in &body.statements {
                         walk_stmt(s, out);
                     }

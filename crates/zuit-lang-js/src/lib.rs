@@ -93,6 +93,7 @@ pub(crate) fn try_js_ast(parsed: &ParsedFile) -> Option<&JsAst> {
 /// - [`analyzers::perf::Perf002HeavyImportAnalyzer`] (`PERF002-heavy-import`)
 /// - [`analyzers::perf::Perf003ImportSideEffectAnalyzer`] (`PERF003-import-side-effect`)
 /// - [`analyzers::external::npm_audit::NpmAuditAnalyzer`] (`JS/npm-audit-*`)
+/// - [`analyzers::block_delimitation::JsBlockDelimitationAnalyzer`] (`STYLE001-block-delimitation`)
 /// - [`analyzers::external::dependency_cruiser::DependencyCruiserAnalyzer`] (`JS/dependency-cruiser-*`)
 pub fn register(registry: &mut Registry) {
     registry.add_language(Box::new(JsLanguage));
@@ -123,6 +124,9 @@ pub fn register(registry: &mut Registry) {
     ));
     registry.add_analyzer(Box::new(
         analyzers::switch_fallthrough::JsSwitchFallthroughAnalyzer,
+    ));
+    registry.add_analyzer(Box::new(
+        analyzers::block_delimitation::JsBlockDelimitationAnalyzer,
     ));
     registry.add_analyzer(Box::new(
         analyzers::operator_precedence::JsOperatorPrecedenceAnalyzer,
@@ -210,7 +214,7 @@ mod tests {
     fn register_adds_analyzer() {
         let mut registry = Registry::new();
         register(&mut registry);
-        assert_eq!(registry.analyzer_count(), 35);
+        assert_eq!(registry.analyzer_count(), 36);
     }
 
     #[test]

@@ -270,6 +270,14 @@ pub struct JsAst {
     ///
     /// See [`JsOpPrecedenceSite`].  Empty when no such patterns are present.
     pub op_precedence_sites: Vec<JsOpPrecedenceSite>,
+
+    /// ASI hazard sites for `STYLE001-block-delimitation` (CWE-483).
+    ///
+    /// See [`JsAsiHazardSite`].  Empty when no such patterns are present.
+    /// Populated by the walker when a `return`, `continue`, or `break`
+    /// statement without an argument/label is immediately followed (exactly
+    /// one newline) by a statement that could have been its argument.
+    pub asi_hazards: Vec<JsAsiHazardSite>,
 }
 
 /// An assignment-in-condition site extracted for `BUG001-assignment-in-condition`.
@@ -319,6 +327,30 @@ pub enum JsOpPrecedenceKind {
     /// as a `TSIntersectionType`, masking the user's intended value-level
     /// bitwise AND. The user almost certainly wanted `(!x as boolean) & MASK`.
     NotWithTsIntersection,
+}
+
+/// Kind of ASI hazard for `STYLE001-block-delimitation` (CWE-483).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum JsAsiHazardKind {
+    /// `return\nexpr;` — ASI inserts `;` after `return`; the expression on
+    /// the following line becomes unreachable, and the function returns
+    /// `undefined`.
+    ReturnExpr,
+    /// `continue\nlabel;` — ASI inserts `;` after `continue`; the label
+    /// identifier on the next line is silently discarded.
+    ContinueLabel,
+    /// `break\nlabel;` — ASI inserts `;` after `break`; the label identifier
+    /// on the next line is silently discarded.
+    BreakLabel,
+}
+
+/// A single ASI hazard site extracted for `STYLE001-block-delimitation`.
+#[derive(Debug, Clone)]
+pub struct JsAsiHazardSite {
+    /// Byte span of the keyword statement (`return`, `continue`, or `break`).
+    pub span: Span,
+    /// Which ASI hazard pattern was detected.
+    pub kind: JsAsiHazardKind,
 }
 
 /// A site flagged by `BUG004-operator-precedence` (CWE-783).
